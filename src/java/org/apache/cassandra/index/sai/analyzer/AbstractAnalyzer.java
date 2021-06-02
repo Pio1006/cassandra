@@ -24,6 +24,8 @@
 
 package org.apache.cassandra.index.sai.analyzer;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
@@ -37,6 +39,7 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.lucene.analysis.Analyzer;
 
 public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 {
@@ -51,6 +54,13 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
     public abstract boolean transformValue();
 
     /**
+     * Call when tokenization is finished.  Used by the LuceneAnalyzer.
+     */
+    public void end()
+    {
+    }
+
+    /**
      * Note: This method does not advance, as we rely on {@link #hasNext()} to buffer the next value.
      *
      * @return the raw value currently buffered by this iterator
@@ -60,22 +70,6 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
         if (next == null)
             throw new NoSuchElementException();
         return next;
-    }
-
-    /**
-     * Note: This method does not advance, as we rely on {@link #hasNext()} to buffer the next value.
-     *
-     * @return the string value currently buffered by this iterator
-     */
-    public String nextLiteral(AbstractType<?> validator)
-    {
-        if (nextLiteral != null)
-        {
-            return nextLiteral;
-        }
-
-        assert next != null;
-        return TypeUtil.getString(next, validator);
     }
 
     public void remove()
@@ -93,20 +87,80 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
         resetInternal(input);
     }
 
-    public static AbstractAnalyzer fromOptions(AbstractType<?> type, Map<String, String> options)
+    public static boolean hasQueryAnalyzer(Map<String, String> options)
     {
+       return options.containsKey(LuceneAnalyzer.JSON_QUERY_ANALYZER);
+    }
+
+    public interface AnalyzerFactory extends Closeable
+    {
+        AbstractAnalyzer get();
+
+        default void close()
+        {
+        }
+    }
+
+    public static AnalyzerFactory fromOptionsQueryAnalyzer(final AbstractType<?> type, final Map<String, String> options)
+    {
+        try
+        {
+            final String json = options.get(LuceneAnalyzer.JSON_QUERY_ANALYZER);
+            return toAnalyzerFactory(json, type, options);
+        }
+        catch (Exception ex)
+        {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public static AnalyzerFactory toAnalyzerFactory(String json, final AbstractType<?> type, final Map<String, String> options) throws Exception
+    {
+        final Analyzer analyzer = JSONAnalyzerParser.parse(json);
+        return new AnalyzerFactory() {
+            @Override
+            public void close()
+            {
+                analyzer.close();
+            }
+
+            public AbstractAnalyzer get()
+            {
+                return new LuceneAnalyzer(type, analyzer, options);
+            }
+        };
+    }
+
+    public static AnalyzerFactory fromOptions(AbstractType<?> type, Map<String, String> options)
+    {
+        if (options.containsKey(LuceneAnalyzer.JSON_ANALYZER))
+        {
+            try
+            {
+                String json = options.get(LuceneAnalyzer.JSON_ANALYZER);
+                return toAnalyzerFactory(json, type, options);
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeException(ex);
+            }
+        }
+
         if (hasNonTokenizingOptions(options))
         {
             if (TypeUtil.isIn(type, ANALYZABLE_TYPES))
             {
-                return new NonTokenizingAnalyzer(type, options);
+                // load NonTokenizingAnalyzer so it'll validate options
+                NonTokenizingAnalyzer a = new NonTokenizingAnalyzer(type, options);
+                a.end();
+                return () -> new NonTokenizingAnalyzer(type, options);
             }
             else
             {
                 throw new InvalidRequestException("CQL type " + type.asCQL3Type() + " cannot be analyzed.");
             }
         }
-        return new NoOpAnalyzer();
+        return () -> new NoOpAnalyzer();
     }
 
     private static boolean hasNonTokenizingOptions(Map<String, String> options)
