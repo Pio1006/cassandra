@@ -96,33 +96,33 @@ public class IndexQuerySupport
         dataModel.insertRows(executor);
         executeQueries(dataModel, executor, sets);
 
-        // queries with Memtable flushed to SSTable on disk
-        dataModel.flush(executor);
-        executeQueries(dataModel, executor, sets);
-
-        // queries across memory and disk indexes
-        dataModel.insertRows(executor);
-        executeQueries(dataModel, executor, sets);
-
-        // queries w/ multiple SSTable indexes
-        dataModel.flush(executor);
-        executeQueries(dataModel, executor, sets);
-
-        // queries after compacting to a single SSTable index
-        dataModel.compact(executor);
-        executeQueries(dataModel, executor, sets);
-
-        // queries against Memtable updates and the existing SSTable index
-        dataModel.updateCells(executor);
-        executeQueries(dataModel, executor, sets);
-
-        // queries against the newly flushed SSTable index and the existing SSTable index
-        dataModel.flush(executor);
-        executeQueries(dataModel, executor, sets);
-
-        // queries after compacting updates into to a single SSTable index
-        dataModel.compact(executor);
-        executeQueries(dataModel, executor, sets);
+//        // queries with Memtable flushed to SSTable on disk
+//        dataModel.flush(executor);
+//        executeQueries(dataModel, executor, sets);
+//
+//        // queries across memory and disk indexes
+//        dataModel.insertRows(executor);
+//        executeQueries(dataModel, executor, sets);
+//
+//        // queries w/ multiple SSTable indexes
+//        dataModel.flush(executor);
+//        executeQueries(dataModel, executor, sets);
+//
+//        // queries after compacting to a single SSTable index
+//        dataModel.compact(executor);
+//        executeQueries(dataModel, executor, sets);
+//
+//        // queries against Memtable updates and the existing SSTable index
+//        dataModel.updateCells(executor);
+//        executeQueries(dataModel, executor, sets);
+//
+//        // queries against the newly flushed SSTable index and the existing SSTable index
+//        dataModel.flush(executor);
+//        executeQueries(dataModel, executor, sets);
+//
+//        // queries after compacting updates into to a single SSTable index
+//        dataModel.compact(executor);
+//        executeQueries(dataModel, executor, sets);
     }
 
     public static void rowDeletions(DataModel.Executor executor, DataModel dataModel, List<BaseQuerySet> sets) throws Throwable
