@@ -51,6 +51,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -106,12 +107,12 @@ public class TrieMemoryIndex extends MemoryIndex
             final long initialSizeOffHeap = data.sizeOffHeap();
             final long reducerHeapSize = primaryKeysReducer.heapAllocations();
 
-
             while (analyzer.hasNext())
             {
                 final ByteBuffer term = analyzer.next();
                 setMinMaxTerm(term);
 
+                logger.info("TrieMemoryIndex.add({}, {}, {})", columnContext.getColumnName(), primaryKey.toString(), ByteBufferUtil.bytesToHex(term));
                 final ByteComparable encodedTerm = encode(term);
                 try
                 {
@@ -226,10 +227,12 @@ public class TrieMemoryIndex extends MemoryIndex
         long maximumTokenValue = Long.MIN_VALUE;
         PriorityQueue<DecoratedKey> mergedKeys = new PriorityQueue<>(lastQueueSize.get(), DecoratedKey.comparator);
 
+        ColumnContext columnContext;
         AbstractBounds<PartitionPosition> keyRange;
 
-        public Collector(AbstractBounds<PartitionPosition> keyRange)
+        public Collector(ColumnContext columnContext, AbstractBounds<PartitionPosition> keyRange)
         {
+            this.columnContext = columnContext;
             this.keyRange = keyRange;
         }
 
@@ -246,6 +249,7 @@ public class TrieMemoryIndex extends MemoryIndex
                 DecoratedKey first = partitionKeys.first();
                 if (keyRange.contains(first))
                 {
+                    logger.info("Collection.processContentSingle({}, {})", columnContext.getColumnName(), first.toString());
                     mergedKeys.add(first);
 
                     long currentTokenValue = first.getToken().getLongValue();
@@ -265,6 +269,7 @@ public class TrieMemoryIndex extends MemoryIndex
             {
                 if (keyRange.contains(key))
                 {
+                    logger.info("Collection.processContentMultiple({}, {})", columnContext.getColumnName(), key.toString());
                     mergedKeys.add(key);
 
                     long currentTokenValue = key.getToken().getLongValue();
@@ -302,7 +307,7 @@ public class TrieMemoryIndex extends MemoryIndex
             upperInclusive = false;
         }
 
-        Collector cd = new Collector(keyRange);
+        Collector cd = new Collector(columnContext, keyRange);
 
         data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive).values().forEach(pk -> cd.processContent(pk));
 
