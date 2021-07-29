@@ -84,6 +84,11 @@ public interface ByteComparable
         return v -> ByteSource.fixedLength(bytes);
     }
 
+    static ByteComparable fixedLength(byte[] bytes, int offset, int length)
+    {
+        return v -> ByteSource.fixedLength(bytes, offset, length);
+    }
+
     /**
      * Returns a separator for two byte sources, i.e. something that is definitely > prevMax, and <= currMin, assuming
      * prevMax < currMin.

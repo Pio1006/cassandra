@@ -367,7 +367,7 @@ public class PostingsReader implements OrdinalPostingList
         input.seek(pointer);
 
         final long left = numPostings - totalPostingsRead;
-        assert left > 0;
+        assert left > 0 : "numPostings="+numPostings+" totalPostingsRead="+totalPostingsRead;
 
         readFoRBlock(input);
 

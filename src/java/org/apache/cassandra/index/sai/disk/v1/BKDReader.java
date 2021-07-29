@@ -24,7 +24,9 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -130,6 +132,281 @@ public class BKDReader extends TraversingBKDReader implements Closeable
     public IteratorState iteratorState(DocMapper docMapper) throws IOException
     {
         return new IteratorState(docMapper);
+    }
+
+    public TreeMap<Integer,Integer> nodeIDToLeafOrdinal()
+    {
+        final TreeMap<Long,Integer> leafFPToLeafNodeID = getLeafOffsets();
+
+        TreeMap<Integer,Integer> nodeIDToLeafOrdinal = new TreeMap();
+
+        Map.Entry<Long,Integer> first = leafFPToLeafNodeID.pollFirstEntry();
+
+        int i = 1;
+        for (int nodeID : leafFPToLeafNodeID.values())
+        {
+            nodeIDToLeafOrdinal.put(nodeID, i);
+            i++;
+        }
+
+        rotateToTree(1, 0, nodeIDToLeafOrdinal.size(), nodeIDToLeafOrdinal);
+
+        nodeIDToLeafOrdinal.put(first.getValue(), 0);
+
+        System.out.println("nodeIDToLeafOrdinal=" + nodeIDToLeafOrdinal);
+
+        TreeSet<Integer> leafOrdinals = new TreeSet(nodeIDToLeafOrdinal.values());
+
+        System.out.println("leafOrdinals=" + leafOrdinals);
+
+        return nodeIDToLeafOrdinal;
+    }
+
+    public Set<Integer> traverseCheck(int minLeaf, int maxLeaf) throws IOException
+    {
+        TreeMap<Integer,Integer> nodeIDToLeafOrdinal = nodeIDToLeafOrdinal();
+        TreeSet<Integer> leafOrdinals = new TreeSet(nodeIDToLeafOrdinal.values());
+
+        final PackedIndexTree index = new PackedIndexTree();
+
+        SimpleRangeVisitor visitor = new SimpleRangeVisitor(new SimpleBound(minLeaf, true), new SimpleBound(maxLeaf, false));
+
+        Set<Integer> resultNodeIDs = new TreeSet();
+
+        int maxLeafOrdinal = leafOrdinals.last();
+
+        collectPostingLists(0,
+                            maxLeafOrdinal,
+                            index,
+                            nodeIDToLeafOrdinal,
+                            visitor,
+                            resultNodeIDs);
+
+        System.out.println("resultNodeIDs="+resultNodeIDs);
+
+        return resultNodeIDs;
+    }
+
+    interface SimpleVisitor
+    {
+        Relation compare(int minOrdinal, int maxOrdinal);
+    }
+
+    public static class SimpleBound
+    {
+        public final int bound;
+        public final boolean exclusive;
+
+        public SimpleBound(int bound, boolean exclusive)
+        {
+            this.bound = bound;
+            this.exclusive = exclusive;
+        }
+
+        public boolean smallerThan(int cmp)
+        {
+            return cmp > 0 || (cmp == 0 && exclusive);
+        }
+
+        public boolean greaterThan(int cmp)
+        {
+            return cmp < 0 || (cmp == 0 && exclusive);
+        }
+    }
+
+    static class SimpleRangeVisitor implements SimpleVisitor
+    {
+       final SimpleBound lower, upper;
+
+        public SimpleRangeVisitor(SimpleBound lower, SimpleBound upper)
+        {
+            this.lower = lower;
+            this.upper = upper;
+        }
+
+        @Override
+        public Relation compare(int minValue, int maxValue)
+        {
+            boolean crosses = false;
+
+            if (lower != null)
+            {
+//                int maxCmp = compareUnsigned(maxPackedValue, dim, lower);
+//                if (lower.greaterThan(maxCmp))
+//                    return Relation.CELL_OUTSIDE_QUERY;
+//
+//                int minCmp = compareUnsigned(minPackedValue, dim, lower);
+//                crosses |= lower.greaterThan(minCmp);
+
+                int maxCmp = Integer.compare(maxValue, lower.bound);
+                if (lower.greaterThan(maxCmp))
+                    return Relation.CELL_OUTSIDE_QUERY;
+
+                int minCmp = Integer.compare(minValue, lower.bound);
+                crosses |= lower.greaterThan(minCmp);
+            }
+
+//            int minCmp = compareUnsigned(minPackedValue, dim, upper);
+//            if (upper.smallerThan(minCmp))
+//                return Relation.CELL_OUTSIDE_QUERY;
+//
+//            int maxCmp = compareUnsigned(maxPackedValue, dim, upper);
+//            crosses |= upper.smallerThan(maxCmp);
+            if (upper != null)
+            {
+                int minCmp = Integer.compare(minValue, upper.bound);
+                if (upper.smallerThan(minCmp))
+                    return Relation.CELL_OUTSIDE_QUERY;
+
+                int maxCmp = Integer.compare(maxValue, upper.bound);
+                crosses |= upper.smallerThan(maxCmp);
+            }
+
+            if (crosses)
+            {
+                return Relation.CELL_CROSSES_QUERY;
+            }
+            else
+            {
+                return Relation.CELL_INSIDE_QUERY;
+            }
+        }
+    }
+
+    public void collectPostingLists(int cellMinLeafOrdinal,
+                                    int cellMaxLeafOrdinal,
+                                    final IndexTree index,
+                                    TreeMap<Integer,Integer> nodeIDToLeafOrdinal,
+                                    SimpleVisitor visitor,
+                                    Set<Integer> resultNodeIDs) throws IOException
+    {
+        final Relation r = visitor.compare(cellMinLeafOrdinal, cellMaxLeafOrdinal);
+
+        if (r == Relation.CELL_OUTSIDE_QUERY)
+        {
+            // This cell is fully outside of the query shape: stop recursing
+            return;
+        }
+
+        if (r == Relation.CELL_INSIDE_QUERY)
+        {
+            final int nodeID = index.getNodeID();
+
+            // if there is pre-built posting for entire subtree
+            if (postingsIndex.exists(nodeID))
+            {
+                resultNodeIDs.add(nodeID);
+                return;
+            }
+
+            Preconditions.checkState(!index.isLeafNode(), "Leaf node %s does not have kd-tree postings.", index.getNodeID());
+
+            visitNode(cellMinLeafOrdinal,
+                      cellMaxLeafOrdinal,
+                      index,
+                      nodeIDToLeafOrdinal,
+                      visitor,
+                      resultNodeIDs);
+            return;
+        }
+
+        if (index.isLeafNode())
+        {
+            if (index.nodeExists())
+            {
+                int nodeID = index.getNodeID();
+                System.out.println("leafNodeID="+nodeID);
+                resultNodeIDs.add(nodeID);
+            }
+            return;
+        }
+
+        visitNode(cellMinLeafOrdinal,
+                  cellMaxLeafOrdinal,
+                  index,
+                  nodeIDToLeafOrdinal,
+                  visitor,
+                  resultNodeIDs);
+    }
+
+    void visitNode(int cellMinPacked,
+                   int cellMaxPacked,
+                   final IndexTree index,
+                   TreeMap<Integer,Integer> nodeIDToLeafOrdinal,
+                   SimpleVisitor visitor,
+                   Set<Integer> resultNodeIDs) throws IOException
+    {
+        int nodeID = index.getNodeID();
+        int splitLeafOrdinal = nodeIDToLeafOrdinal.get(nodeID);
+
+        index.pushLeft();
+        collectPostingLists(cellMinPacked, splitLeafOrdinal, index, nodeIDToLeafOrdinal, visitor, resultNodeIDs);
+        index.pop();
+
+        index.pushRight();
+        collectPostingLists(splitLeafOrdinal, cellMaxPacked, index, nodeIDToLeafOrdinal, visitor, resultNodeIDs);
+        index.pop();
+    }
+
+    private void rotateToTree(int nodeID, int offset, int count, Map<Integer,Integer> nodeIDToLeafOrdinal)
+    {
+        //System.out.println("ROTATE: nodeID=" + nodeID + " offset=" + offset + " count=" + count + " bpd=" + bytesPerDim + " index.length=" + index.length);
+        if (count == 1)
+        {
+            // Leaf index node
+            //System.out.println("  leaf index node");
+            //System.out.println("  index[" + nodeID + "] = blockStartValues[" + offset + "]");
+
+            nodeIDToLeafOrdinal.put(nodeID, offset + 1);
+
+            //System.arraycopy(leafBlockStartValues.get(offset), 0, index, nodeID * (1 + bytesPerDim) + 1, bytesPerDim);
+        }
+        else if (count > 1)
+        {
+            // Internal index node: binary partition of count
+            int countAtLevel = 1;
+            int totalCount = 0;
+            while (true)
+            {
+                int countLeft = count - totalCount;
+                //System.out.println("    cycle countLeft=" + countLeft + " coutAtLevel=" + countAtLevel);
+                if (countLeft <= countAtLevel)
+                {
+                    // This is the last level, possibly partially filled:
+                    int lastLeftCount = Math.min(countAtLevel / 2, countLeft);
+                    assert lastLeftCount >= 0;
+                    int leftHalf = (totalCount - 1) / 2 + lastLeftCount;
+
+                    int rootOffset = offset + leftHalf;
+          /*
+          System.out.println("  last left count " + lastLeftCount);
+          System.out.println("  leftHalf " + leftHalf + " rightHalf=" + (count-leftHalf-1));
+          System.out.println("  rootOffset=" + rootOffset);
+          */
+
+                    nodeIDToLeafOrdinal.put(nodeID, rootOffset + 1);
+
+                    //System.arraycopy(leafBlockStartValues.get(rootOffset), 0, index, nodeID * (1 + bytesPerDim) + 1, bytesPerDim);
+                    //System.out.println("  index[" + nodeID + "] = blockStartValues[" + rootOffset + "]");
+
+                    // TODO: we could optimize/specialize, when we know it's simply fully balanced binary tree
+                    // under here, to save this while loop on each recursion
+
+                    // Recurse left
+                    rotateToTree(2 * nodeID, offset, leftHalf, nodeIDToLeafOrdinal);
+
+                    // Recurse right
+                    rotateToTree(2 * nodeID + 1, rootOffset + 1, count - leftHalf - 1, nodeIDToLeafOrdinal);
+                    return;
+                }
+                totalCount += countAtLevel;
+                countAtLevel *= 2;
+            }
+        }
+        else
+        {
+            assert count == 0;
+        }
     }
 
     public class IteratorState extends AbstractIterator<Long> implements Comparable<IteratorState>, Closeable
@@ -385,7 +662,28 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             try
             {
                 PriorityQueue<PostingList.PeekablePostingList> postingLists = new PriorityQueue<>(100, COMPARATOR);
-                executeInternal(postingLists);
+
+                Set<Integer> nodeIDs = new TreeSet<>();
+
+                executeInternal(postingLists, nodeIDs);
+
+                System.out.println("nodeIDs="+nodeIDs);
+
+                TreeMap<Integer,Integer> nodeIDToLeafOrdinal = nodeIDToLeafOrdinal();
+                int maxLeafOrdinal = -1;
+                int minLeafOrdinal = Integer.MAX_VALUE;
+                for (int nodeID : nodeIDs)
+                {
+                    int leafOrdinal = nodeIDToLeafOrdinal.get(nodeID);
+                    maxLeafOrdinal = Math.max(maxLeafOrdinal, leafOrdinal);
+                    minLeafOrdinal = Math.min(minLeafOrdinal, leafOrdinal);
+                }
+
+                System.out.println("minLeafOrdinal="+minLeafOrdinal+" maxLeafOrdinal="+maxLeafOrdinal);
+
+                Set<Integer> nodeIDs2 = BKDReader.this.traverseCheck(minLeafOrdinal, maxLeafOrdinal);
+
+                System.out.println("nodeIDs2="+nodeIDs2);
 
                 FileUtils.closeQuietly(bkdInput);
 
@@ -401,9 +699,10 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             }
         }
 
-        protected void executeInternal(final PriorityQueue<PostingList.PeekablePostingList> postingLists) throws IOException
+        protected void executeInternal(final PriorityQueue<PostingList.PeekablePostingList> postingLists,
+                                       Set<Integer> nodeIDs) throws IOException
         {
-            collectPostingLists(postingLists);
+            collectPostingLists(postingLists, nodeIDs);
         }
 
         protected void closeOnException()
@@ -432,7 +731,8 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             }
         }
 
-        public void collectPostingLists(PriorityQueue<PostingList.PeekablePostingList> postingLists) throws IOException
+        public void collectPostingLists(PriorityQueue<PostingList.PeekablePostingList> postingLists,
+                                        Set<Integer> nodeIDs) throws IOException
         {
             context.checkpoint();
 
@@ -441,6 +741,7 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             // if there is pre-built posting for entire subtree
             if (postingsIndex.exists(nodeID))
             {
+                nodeIDs.add(nodeID);
                 postingLists.add(initPostingReader(postingsIndex.getPostingsFilePointer(nodeID)).peekable());
                 return;
             }
@@ -449,12 +750,12 @@ public class BKDReader extends TraversingBKDReader implements Closeable
 
             // Recurse on left sub-tree:
             index.pushLeft();
-            collectPostingLists(postingLists);
+            collectPostingLists(postingLists, nodeIDs);
             index.pop();
 
             // Recurse on right sub-tree:
             index.pushRight();
-            collectPostingLists(postingLists);
+            collectPostingLists(postingLists, nodeIDs);
             index.pop();
         }
 
@@ -648,12 +949,15 @@ public class BKDReader extends TraversingBKDReader implements Closeable
         }
 
         @Override
-        public void executeInternal(final PriorityQueue<PostingList.PeekablePostingList> postingLists) throws IOException
+        public void executeInternal(final PriorityQueue<PostingList.PeekablePostingList> postingLists, Set<Integer> nodeIDs) throws IOException
         {
-            collectPostingLists(postingLists, minPackedValue, maxPackedValue);
+            collectPostingLists(postingLists, minPackedValue, maxPackedValue, nodeIDs);
         }
 
-        public void collectPostingLists(PriorityQueue<PostingList.PeekablePostingList> postingLists, byte[] cellMinPacked, byte[] cellMaxPacked) throws IOException
+        public void collectPostingLists(PriorityQueue<PostingList.PeekablePostingList> postingLists,
+                                        byte[] cellMinPacked,
+                                        byte[] cellMaxPacked,
+                                        Set<Integer> nodeIDs) throws IOException
         {
             context.checkpoint();
 
@@ -668,18 +972,22 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             if (r == Relation.CELL_INSIDE_QUERY)
             {
                 // This cell is fully inside of the query shape: recursively add all points in this cell without filtering
-                super.collectPostingLists(postingLists);
+                super.collectPostingLists(postingLists, nodeIDs);
                 return;
             }
 
             if (index.isLeafNode())
             {
                 if (index.nodeExists())
+                {
+                    System.out.println("regular leafNodeID="+index.getNodeID());
+                    nodeIDs.add(index.getNodeID());
                     filterLeaf(postingLists);
+                }
                 return;
             }
 
-            visitNode(postingLists, cellMinPacked, cellMaxPacked);
+            visitNode(postingLists, cellMinPacked, cellMaxPacked, nodeIDs);
         }
 
         @SuppressWarnings("resource")
@@ -726,7 +1034,10 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             }
         }
 
-        void visitNode(PriorityQueue<PostingList.PeekablePostingList> postingLists, byte[] cellMinPacked, byte[] cellMaxPacked) throws IOException
+        void visitNode(PriorityQueue<PostingList.PeekablePostingList> postingLists,
+                       byte[] cellMinPacked,
+                       byte[] cellMaxPacked,
+                       Set<Integer> nodeIDs) throws IOException
         {
             int splitDim = index.getSplitDim();
             assert splitDim >= 0 : "splitDim=" + splitDim;
@@ -745,7 +1056,7 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             System.arraycopy(splitDimValue.bytes, splitDimValue.offset, splitPackedValue, splitDim * bytesPerDim, bytesPerDim);
 
             index.pushLeft();
-            collectPostingLists(postingLists, cellMinPacked, splitPackedValue);
+            collectPostingLists(postingLists, cellMinPacked, splitPackedValue, nodeIDs);
             index.pop();
 
             // Restore the split dim value since it may have been overwritten while recursing:
@@ -754,7 +1065,7 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             System.arraycopy(cellMinPacked, 0, splitPackedValue, 0, packedBytesLength);
             System.arraycopy(splitDimValue.bytes, splitDimValue.offset, splitPackedValue, splitDim * bytesPerDim, bytesPerDim);
             index.pushRight();
-            collectPostingLists(postingLists, splitPackedValue, cellMaxPacked);
+            collectPostingLists(postingLists, splitPackedValue, cellMaxPacked, nodeIDs);
             index.pop();
         }
 

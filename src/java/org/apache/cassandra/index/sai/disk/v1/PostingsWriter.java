@@ -124,6 +124,15 @@ public class PostingsWriter implements Closeable
         SAICodecUtils.writeHeader(dataOutput);
     }
 
+    public PostingsWriter(IndexOutput dataOutput, int blockSize, boolean writeHeader) throws IOException
+    {
+        this.blockSize = blockSize;
+        this.dataOutput = dataOutput;
+        startOffset = dataOutput.getFilePointer();
+        deltaBuffer = new long[blockSize];
+        if (writeHeader) SAICodecUtils.writeHeader(dataOutput);
+    }
+
     /**
      * @return current file pointer
      */
@@ -190,6 +199,31 @@ public class PostingsWriter implements Closeable
         return summaryOffset;
     }
 
+    private int postingsWritten = 0;
+
+    public void initPostings()
+    {
+        postingsWritten = 0;
+        resetBlockCounters();
+        blockOffsets.clear();
+        blockMaxIDs.clear();
+    }
+
+    public void add(long rowid) throws IOException
+    {
+        writePosting(rowid);
+        totalPostings++;
+    }
+
+    public long completePostings() throws IOException
+    {
+        finish();
+
+        final long summaryOffset = dataOutput.getFilePointer();
+        writeSummary(postingsWritten);
+        return summaryOffset;
+    }
+
     public long getTotalPostings()
     {
         return totalPostings;
@@ -211,6 +245,7 @@ public class PostingsWriter implements Closeable
             resetBlockCounters();
         }
         lastSegmentRowId = segmentRowId;
+        postingsWritten++;
     }
 
     private void finish() throws IOException
@@ -218,7 +253,6 @@ public class PostingsWriter implements Closeable
         if (bufferUpto > 0)
         {
             addBlockToSkipTable(lastSegmentRowId);
-
             writePostingsBlock(maxDelta, bufferUpto);
         }
     }
@@ -240,6 +274,7 @@ public class PostingsWriter implements Closeable
     {
         dataOutput.writeVInt(blockSize);
         dataOutput.writeVInt(exactSize);
+        System.out.println("writeSummary exactSize="+exactSize);
         writeSkipTable();
     }
 

@@ -247,7 +247,6 @@ public class TraversingBKDReader implements Closeable
         public abstract long getLeafBlockFP();
     }
 
-
     /**
      * Copy of BKDReader.PackedIndexTree
      */

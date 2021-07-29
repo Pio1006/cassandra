@@ -213,7 +213,7 @@ class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
     private static class ImmutableTransitionBytesCollector extends TransitionBytesCollector
     {
         @Override
-        ByteComparable toByteComparable()
+        public ByteComparable toByteComparable()
         {
             assert pos > 0;
             final int length = pos;
@@ -227,7 +227,7 @@ class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         }
     }
 
-    private static class TransitionBytesCollector
+    public static class TransitionBytesCollector
     {
         protected byte[] bytes = new byte[32];
         protected int pos = 0;
@@ -247,7 +247,7 @@ class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
             pos--;
         }
 
-        ByteComparable toByteComparable()
+        public ByteComparable toByteComparable()
         {
             assert pos > 0;
             final byte[] value = new byte[pos];

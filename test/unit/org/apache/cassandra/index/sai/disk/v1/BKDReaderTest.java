@@ -186,36 +186,26 @@ public class BKDReaderTest extends NdiRandomizedTest
 
         final BKDReader reader = finishAndOpenReaderOneDim(2, buffer, indexComponents);
 
-        try (BKDReader.IteratorState iterator = reader.iteratorState())
-        {
-            while (iterator.hasNext())
-            {
-                int value = NumericUtils.sortableBytesToInt(iterator.scratch, 0);
-                System.out.println("term=" + value);
-                iterator.next();
-            }
-        }
+//        try (PostingList intersection = reader.intersect(NONE_MATCH, NO_OP_BKD_LISTENER, new QueryContext()))
+//        {
+//            assertNull(intersection);
+//        }
 
-        try (PostingList intersection = reader.intersect(NONE_MATCH, NO_OP_BKD_LISTENER, new QueryContext()))
-        {
-            assertNull(intersection);
-        }
-
-        try (PostingList collectAllIntersection = reader.intersect(ALL_MATCH, NO_OP_BKD_LISTENER, new QueryContext());
-             PostingList filteringIntersection = reader.intersect(ALL_MATCH_WITH_FILTERING, NO_OP_BKD_LISTENER, new QueryContext()))
-        {
-            assertEquals(numRows, collectAllIntersection.size());
-            assertEquals(numRows, filteringIntersection.size());
-
-            for (int docID = 0; docID < numRows; docID++)
-            {
-                assertEquals(docID, collectAllIntersection.nextPosting());
-                assertEquals(docID, filteringIntersection.nextPosting());
-            }
-
-            assertEquals(PostingList.END_OF_STREAM, collectAllIntersection.nextPosting());
-            assertEquals(PostingList.END_OF_STREAM, filteringIntersection.nextPosting());
-        }
+//        try (PostingList collectAllIntersection = reader.intersect(ALL_MATCH, NO_OP_BKD_LISTENER, new QueryContext());
+//             PostingList filteringIntersection = reader.intersect(ALL_MATCH_WITH_FILTERING, NO_OP_BKD_LISTENER, new QueryContext()))
+//        {
+//            assertEquals(numRows, collectAllIntersection.size());
+//            assertEquals(numRows, filteringIntersection.size());
+//
+//            for (int docID = 0; docID < numRows; docID++)
+//            {
+//                assertEquals(docID, collectAllIntersection.nextPosting());
+//                assertEquals(docID, filteringIntersection.nextPosting());
+//            }
+//
+//            assertEquals(PostingList.END_OF_STREAM, collectAllIntersection.nextPosting());
+//            assertEquals(PostingList.END_OF_STREAM, filteringIntersection.nextPosting());
+//        }
 
         // Simple 1D range query:
         final int queryMin = 42;
