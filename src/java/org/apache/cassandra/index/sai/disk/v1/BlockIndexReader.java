@@ -27,7 +27,6 @@ import java.util.TreeSet;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
-import com.google.common.collect.TreeRangeSet;
 
 import com.carrotsearch.hppc.IntLongHashMap;
 import org.apache.cassandra.index.sai.disk.PostingList;
@@ -127,7 +126,7 @@ public class BlockIndexReader
             int nodeID = input.readVInt(); // TODO: en/decoding the node ID isn't necessary since it's in order
             int leafOrdinal = input.readVInt();
 
-            assert nodeID == x;
+            assert nodeID == x : "nodeid="+nodeID+" x="+x;
 
             nodeIDToLeaf.put(nodeID, leafOrdinal);
         }
@@ -163,22 +162,16 @@ public class BlockIndexReader
         {
             max = multiBlockRange.upperEndpoint();
         }
+
+        if (min > 0)
+        {
+            min--; // get the previous node to filter
+        }
+
         System.out.println("multiBlockRange="+multiBlockRange+" max="+max+" multiBlockLeafOrdinalRanges="+multiBlockLeafOrdinalRanges);
         TreeSet<Integer> nodeIDs = traverseIndex(min, max);
         System.out.println("traverseForNodeIDs min/max="+pair+" nodeIDs="+nodeIDs+" min="+min+" max="+max);
         return nodeIDs;
-
-//        TreeSet<Long> filePointers = new TreeSet<>();
-//
-//        for (int nodeID : nodeIDs)
-//        {
-//            int leafOrdinal = (int) nodeIDToLeaf.get(nodeID);
-//            long filePointer = nodeIDToFilePointer.get(leafOrdinal);
-//
-//            filePointers.add(filePointer);
-//        }
-
-        // return filePointers;
     }
 
     public PostingList filterLastLeaf(int nodeID,
@@ -202,7 +195,6 @@ public class BlockIndexReader
             }
         }
 
-        //int cardinality = this.leafSize - idx;
         int cardinality = idx;
         final int endIdxFinal = endIdx;
 
@@ -224,43 +216,40 @@ public class BlockIndexReader
                                        boolean exclusive) throws IOException
     {
         final int leaf = (int) this.nodeIDToLeaf.get(nodeID);
+
+        // TODO: check if the leaf is all the same value
+        //       if true, there's no need to filter
+
         final long leafFP = leafFilePointers.get(leaf);
         readBlock(leafFP);
 
         int idx = 0;
+        int startIdx = 0;
         for (idx = 0; idx < this.leafSize; idx++)
         {
             final BytesRef term = seekInBlock(idx);
 
-            if (exclusive)
+            System.out.println("filterFirstLeaf term="+term.utf8ToString()+" targetTerm="+targetTerm.utf8ToString());
+
+            if (term.compareTo(targetTerm) >= 0)
             {
-                if (term.compareTo(targetTerm) > 0)
-                {
-                    break;
-                }
-            }
-            else
-            {
-                if (term.compareTo(targetTerm) >= 0)
-                {
-                    break;
-                }
+                startIdx = idx;
+                break;
             }
         }
 
-        int cardinality = this.leafSize - idx;
-
-        final int startOrdinal = idx;
+        int cardinality = this.leafSize - startIdx;
 
         final long orderMapFP = leafToOrderMapFP.get(leaf);
         final long postingsFP = nodeIDToPostingsFP.get(nodeID);
         System.out.println("nodeID="+nodeID+" postingsFP="+postingsFP);
         PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsInput, postingsFP);
         PostingsReader postings = new PostingsReader(postingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
+        final int startIdxFinal = startIdx;
         FilteringPostingList2 filterPostings = new FilteringPostingList2(
         cardinality,
         // get the row id's term ordinal to compare against the startOrdinal
-        (postingsOrd, rowID) -> this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd) >= startOrdinal,
+        (postingsOrd, rowID) -> this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd) >= startIdxFinal,
         postings);
         return filterPostings;
     }
@@ -270,7 +259,8 @@ public class BlockIndexReader
         return new BinaryTreeIndex(meta.numLeaves);
     }
 
-    // returns node id's
+    // using the given min and max leaf id's, traverse the binary tree, return node id's with postings
+    // atm the that's only leaf node id's
     public TreeSet<Integer> traverseIndex(int minLeaf, int maxLeaf) throws IOException
     {
         SimpleRangeVisitor visitor = new SimpleRangeVisitor(new BKDReader.SimpleBound(minLeaf, true),
@@ -377,7 +367,10 @@ public class BlockIndexReader
             {
                 Iterator<Pair<ByteSource, Long>> iterator = reader.iterator();
                 Pair<ByteSource, Long> pair = iterator.next();
-                minLeafOrdinal = pair.right.intValue();
+                long value = pair.right.longValue();
+                int minLeaf = (int)(value >> 32);
+                int maxLeaf = (int)value;
+                minLeafOrdinal = minLeaf;
             }
         }
 
@@ -392,7 +385,10 @@ public class BlockIndexReader
             {
                 Iterator<Pair<ByteSource, Long>> iterator = reader.iterator();
                 Pair<ByteSource, Long> pair = iterator.next();
-                maxLeafOrdinal = pair.right.intValue();
+                long value = pair.right.longValue();
+                int minLeaf = (int)(value >> 32);
+                int maxLeaf = (int)value;
+                maxLeafOrdinal = maxLeaf;
             }
         }
 

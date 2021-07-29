@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.SortedSet;
 
 import com.google.common.collect.Range;
@@ -203,8 +202,8 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
                                                            postingsInput,
                                                            meta);
 
-            SortedSet<Integer> nodeIDs2 = reader.traverseForNodeIDs(null,
-                                                                    ByteComparable.fixedLength("cccc".getBytes(StandardCharsets.UTF_8)));
+            SortedSet<Integer> nodeIDs2 = reader.traverseForNodeIDs(ByteComparable.fixedLength("zzzzz".getBytes(StandardCharsets.UTF_8)),
+                                                                    null);
             System.out.println("nodeIDs2=" + nodeIDs2);
 
 //            Set<Integer> nodeIDs = reader.traverseIndex(3, 4);
@@ -231,8 +230,11 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
             //int minNodeID = nodeIDToLeafOrd.get(0).left;
             int maxNodeID = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).left;
 
-            PostingList leafPostings = reader.filterLastLeaf(maxNodeID,
-                                                              new BytesRef("cccc"),
+            int minNodeID = nodeIDToLeafOrd.get(0).left;
+
+            // maxNodeID,
+            PostingList leafPostings = reader.filterFirstLeaf(minNodeID,
+                                                              new BytesRef("zzzzz"),
                                                               false);
 
             while (true)

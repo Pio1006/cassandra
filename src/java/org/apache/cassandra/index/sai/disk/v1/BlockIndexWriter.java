@@ -54,6 +54,7 @@ public class BlockIndexWriter
     // TODO: when the previous leaf min value is the same,
     //       write the leaf file pointer to the first occurence of the min value
     private final LongArrayList leafFilePointers = new LongArrayList();
+    private final LongArrayList realLeafFilePointers = new LongArrayList();
     private final GrowableByteArrayDataOutput scratchOut = new GrowableByteArrayDataOutput(8 * 1024);
     private final GrowableByteArrayDataOutput prefixScratchOut = new GrowableByteArrayDataOutput(8 * 1024);
     private final GrowableByteArrayDataOutput lengthsScratchOut = new GrowableByteArrayDataOutput(8 * 1024);
@@ -72,7 +73,6 @@ public class BlockIndexWriter
 
     final BitSet leafAllValuesSame = new BitSet();
 
-    //private final IncrementalTrieWriter<Long> termsIndexWriter;
     private final PostingsWriter postingsWriter;
     private final TreeMap<Integer,Long> leafToPostingsFP = new TreeMap();
     private final TreeMap<Integer,Long> leafToOrderMapFP = new TreeMap();
@@ -88,7 +88,6 @@ public class BlockIndexWriter
         this.postingsOut = postingsOut;
         this.orderMapOut = orderMapOut;
 
-        //termsIndexWriter = new IncrementalDeepTrieWriterPageAware<>(TrieTermsDictionaryReader.trieSerializer, indexOut.asSequentialWriter());
         postingsWriter = new PostingsWriter(postingsOut, BLOCK_SIZE, false);
     }
 
@@ -118,8 +117,7 @@ public class BlockIndexWriter
     {
         if (leafOrdinal > 0)
         {
-            long leafFP = writeLeaf();
-            leafFilePointers.add(leafFP);
+            writeLeaf();
         }
 
         // write the block min values index
@@ -127,6 +125,7 @@ public class BlockIndexWriter
         int distinctCount = 0;
         int start = 0;
         int leafIdx = 0;
+        // write only distinct terms and the min and max leaf id's encoded as a long
         for (leafIdx = 0; leafIdx < blockMinValues.size(); leafIdx++)
         {
             BytesRef minValue = blockMinValues.get(leafIdx);
@@ -138,7 +137,9 @@ public class BlockIndexWriter
                     int startLeaf = start;
                     int endLeaf = leafIdx - 1;
                     System.out.println("termsIndexWriter write term="+prevMinValue.utf8ToString()+" endLeaf="+endLeaf);
-                    termsIndexWriter.add(fixedLength(prevMinValue), new Long(endLeaf));
+                    long encodedLong = (((long)startLeaf) << 32) | (endLeaf & 0xffffffffL);
+                    // TODO: when the start and end leaf's are the same encode a single int
+                    termsIndexWriter.add(fixedLength(prevMinValue), new Long(encodedLong));
                     distinctCount = 0;
                     start = leafIdx;
                 }
@@ -147,8 +148,9 @@ public class BlockIndexWriter
             {
                 int endLeaf = leafIdx;
                 BytesRef prevMinValue = blockMinValues.get(leafIdx);
-                System.out.println("termsIndexWriter write2 term="+prevMinValue.utf8ToString()+" endLeaf="+endLeaf);
-                termsIndexWriter.add(fixedLength(prevMinValue), new Long(leafIdx));
+                System.out.println("termsIndexWriter write2 term="+prevMinValue.utf8ToString()+" start="+start+" endLeaf="+endLeaf);
+                long encodedLong = (((long)start) << 32) | (endLeaf & 0xffffffffL);
+                termsIndexWriter.add(fixedLength(prevMinValue), new Long(encodedLong));
             }
             distinctCount++;
         }
@@ -172,8 +174,6 @@ public class BlockIndexWriter
             writingMultiBlock = false;
         }
 
-        // TODO: write out remaining postings
-
         assert leafFilePointers.size() == blockMinValues.size()
         : "leafFilePointers.size=" + leafFilePointers.size() + " blockMinValues.size=" + blockMinValues.size();
 
@@ -183,9 +183,9 @@ public class BlockIndexWriter
 
         final long leafFilePointersFP = out.getFilePointer();
 
-        for (int x=0; x < leafFilePointers.size(); x++)
+        for (int x=0; x < realLeafFilePointers.size(); x++)
         {
-            out.writeVLong(leafFilePointers.get(x));
+            out.writeVLong(realLeafFilePointers.get(x));
         }
 
         final TreeMap<Integer,Integer> nodeIDToLeafOrdinal = new TreeMap();
@@ -243,6 +243,7 @@ public class BlockIndexWriter
         int ordinal = 0;
         for (Map.Entry<Long, Integer> entry : leafPointerToNodeID.entrySet())
         {
+            //long realFP = realLeafFilePointers.get(ordinal);
             nodeIDToLeafOrdinal.put(entry.getValue(), ordinal);
             ordinal++;
         }
@@ -278,7 +279,7 @@ public class BlockIndexWriter
 
         final long indexFP = termsIndexWriter.complete();
 
-        System.out.println("leafOrdinalToPostingsFP=" + leafToPostingsFP);
+        System.out.println("leafToPostingsFP=" + leafToPostingsFP);
 
         termsIndexWriter.close();
         indexOut.close();
@@ -367,8 +368,7 @@ public class BlockIndexWriter
 
         if (leafOrdinal == LEAF_SIZE)
         {
-            long filePointer = writeLeaf();
-            leafFilePointers.add(filePointer);
+            writeLeaf();
             leafOrdinal = 0;
             scratchOut.reset();
             prefixScratchOut.reset();
@@ -378,9 +378,13 @@ public class BlockIndexWriter
         }
     }
 
-    protected long writeLeaf() throws IOException
+    protected void writeLeaf() throws IOException
     {
+        // TODO: when the min value is the same as the last and allLeafValuesSame=true
+        //       don't write the prefix bytes, and return the previous leaf's file pointer
+
         final BytesRef minValue = blockMinValues.get(leaf);
+        this.leafFilePointers.add((long)leaf);
 
         if (allLeafValuesSame)
         {
@@ -389,55 +393,56 @@ public class BlockIndexWriter
 
         System.out.println("  writeLeaf leaf="+leaf+" minValue="+minValue.utf8ToString());
 
-        if (leaf > 0)
+        try
         {
-            final BytesRef prevMinValue = blockMinValues.get(leaf - 1);
-            if (!minValue.equals(prevMinValue))
+            if (leaf > 0)
             {
-                //System.out.println("termsIndexWriter.add term="+minValue.utf8ToString());
-                //termsIndexWriter.add(fixedLength(minValue), new Long(leaf));
+                // if the previous min value is the same as this leaf's
+                // then simply refer to the previous leaf's bytes
+                final BytesRef prevMinValue = blockMinValues.get(leaf - 1);
+                if (minValue.equals(prevMinValue) && allLeafValuesSame)
+                {
+                    System.out.println("duplicate minValue=" + minValue.utf8ToString());
+
+                    long previousRealFP = this.realLeafFilePointers.get(this.realLeafFilePointers.size() - 1);
+                    this.realLeafFilePointers.add(previousRealFP);
+                    return;
+                }
             }
-            else
-            {
-                System.out.println("duplicate minValue="+minValue.utf8ToString());
-            }
+
+            long filePointer = out.getFilePointer();
+            System.out.println("writeLeaf leaf=" + leaf + " filePointer=" + filePointer + " leafIndex=" + leafOrdinal);
+            final int maxLength = Arrays.stream(lengths).max().getAsInt();
+            LeafOrderMap.write(lengths, leafOrdinal, maxLength, lengthsScratchOut);
+            final int maxPrefix = Arrays.stream(prefixes).max().getAsInt();
+            System.out.println("prefixes=" + Arrays.toString(Arrays.copyOf(prefixes, leafOrdinal)));
+            LeafOrderMap.write(prefixes, leafOrdinal, maxPrefix, prefixScratchOut);
+
+            out.writeInt(leafOrdinal); // value count
+            out.writeInt(lengthsScratchOut.getPosition());
+            out.writeInt(prefixScratchOut.getPosition());
+            out.writeByte((byte) DirectWriter.unsignedBitsRequired(maxLength));
+            out.writeByte((byte) DirectWriter.unsignedBitsRequired(maxPrefix));
+            out.writeBytes(lengthsScratchOut.getBytes(), 0, lengthsScratchOut.getPosition());
+            out.writeBytes(prefixScratchOut.getBytes(), 0, prefixScratchOut.getPosition());
+            System.out.println("write bytes file pointer=" + out.getFilePointer());
+            out.writeBytes(scratchOut.getBytes(), 0, scratchOut.getPosition());
+
+            this.realLeafFilePointers.add(filePointer);
         }
-        else
+        finally
         {
-//            System.out.println("termsIndexWriter.add term="+minValue.utf8ToString());
-//            termsIndexWriter.add(fixedLength(minValue), new Long(leaf));
+            writePostings(allLeafValuesSame);
+
+            lastAddedTerm.clear();
+            allLeafValuesSame = true;
+
+            leaf++;
         }
-
-        long filePointer = out.getFilePointer();
-        System.out.println("writeLeaf leaf=" + leaf + " filePointer=" + filePointer + " leafIndex=" + leafOrdinal);
-        final int maxLength = Arrays.stream(lengths).max().getAsInt();
-        LeafOrderMap.write(lengths, leafOrdinal, maxLength, lengthsScratchOut);
-        final int maxPrefix = Arrays.stream(prefixes).max().getAsInt();
-        System.out.println("prefixes=" + Arrays.toString(Arrays.copyOf(prefixes, leafOrdinal)));
-        LeafOrderMap.write(prefixes, leafOrdinal, maxPrefix, prefixScratchOut);
-
-        out.writeInt(leafOrdinal); // value count
-        out.writeInt(lengthsScratchOut.getPosition());
-        out.writeInt(prefixScratchOut.getPosition());
-        out.writeByte((byte)DirectWriter.unsignedBitsRequired(maxLength));
-        out.writeByte((byte)DirectWriter.unsignedBitsRequired(maxPrefix));
-        out.writeBytes(lengthsScratchOut.getBytes(), 0, lengthsScratchOut.getPosition());
-        out.writeBytes(prefixScratchOut.getBytes(), 0, prefixScratchOut.getPosition());
-        System.out.println("write bytes file pointer="+out.getFilePointer());
-        out.writeBytes(scratchOut.getBytes(), 0, scratchOut.getPosition());
-
-        writePostings(allLeafValuesSame);
-
-        lastAddedTerm.clear();
-        allLeafValuesSame = true;
-
-        leaf++;
-
-        return filePointer;
     }
 
-    boolean writingMultiBlock = false;
-    int multiBlockStartLeaf = -1;
+    private boolean writingMultiBlock = false;
+    private int multiBlockStartLeaf = -1;
 
     public static class RowIDLeafOrdinal
     {
@@ -651,12 +656,12 @@ public class BlockIndexWriter
         if (nodeID >= leafBlockFPs.length)
         {
             int leafID = nodeID - leafBlockFPs.length;
-            long filePointer = leafBlockFPs[leafID];
+            long fakeFP = leafBlockFPs[leafID];
 
             // In the unbalanced case it's possible the left most node only has one child:
             if (leafID < leafBlockFPs.length)
             {
-                nodeIDToLeafPointer.put(nodeID, filePointer);
+                nodeIDToLeafPointer.put(nodeID, fakeFP);
                 return;
             }
             return;
