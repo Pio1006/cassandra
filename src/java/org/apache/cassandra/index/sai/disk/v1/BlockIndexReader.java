@@ -88,8 +88,7 @@ public class BlockIndexReader
     int leafIndex;
     long currentLeafFP = -1;
 
-    final RangeSet<Integer> multiBlockLeafOrdinalRanges;
-    //final long[] nodeIDToPostingsFP;
+    final RangeSet<Integer> multiBlockLeafRanges;
 
     public BlockIndexReader(final IndexInput input,
                             final IndexInput input2,
@@ -102,7 +101,7 @@ public class BlockIndexReader
         this.meta = meta;
         this.orderMapInput = orderMapInput;
         orderMapRandoInput = new SeekingRandomAccessInput(orderMapInput);
-        this.multiBlockLeafOrdinalRanges = meta.multiBlockLeafOrdinalRanges;
+        this.multiBlockLeafRanges = meta.multiBlockLeafOrdinalRanges;
 
         this.nodeIDToPostingsFP = meta.nodeIDPostingsFP;
         this.postingsInput = postingsInput;
@@ -187,6 +186,8 @@ public class BlockIndexReader
         int maxNodeID = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).left;
         int maxLeafOrd = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).right;
 
+        System.out.println("nodeIDToLeafOrd="+nodeIDToLeafOrd);
+
         List<PostingList.PeekablePostingList> postingLists = new ArrayList<>();
 
         //Range<Integer> minRange = meta.multiBlockLeafOrdinalRanges.rangeContaining(minLeafOrd);
@@ -195,10 +196,11 @@ public class BlockIndexReader
         int startOrd = 1;
         int endOrd = nodeIDToLeafOrd.size() - 1;
 
-        //if (minRange != null)
+        System.out.println("minLeafOrd="+minLeafOrd+" minRangeExists="+minRangeExists);
+
         if (minRangeExists)
         {
-            //startOrd = 0;
+            startOrd = 0;
         }
         else
         {
@@ -209,20 +211,29 @@ public class BlockIndexReader
 
         //Range<Integer> maxRange = meta.multiBlockLeafOrdinalRanges.rangeContaining(maxLeafOrd);
         boolean maxRangeExists = meta.multiBlockLeafOrdinalRanges.contains(maxLeafOrd);
+        boolean allSameValues = meta.leafValuesSame.get(maxLeafOrd);
 
-        if (maxRangeExists)
+        System.out.println("last leaf maxRangeExists="+maxRangeExists+" allSameValues="+allSameValues);
+
+        if (maxRangeExists || allSameValues)
         {
-
+            endOrd = nodeIDToLeafOrd.size();
+            Pair<Integer,Integer> pair = nodeIDToLeafOrd.get(endOrd - 1);
+            assert !leafToOrderMapFP.containsKey(pair.right);
         }
         else
         {
             BytesRef endBytes = new BytesRef(ByteSourceInverse.readBytes(end.asComparableBytes(ByteComparable.Version.OSS41)));
+            System.out.println("filterLastLeaf endBytes="+endBytes.utf8ToString());
             PostingList lastList = filterLastLeaf(maxNodeID, endBytes, false);
             postingLists.add(lastList.peekable());
         }
 
         // make sure to iterate over the posting lists in leaf id order
-        for (int x=startOrd; x < nodeIDToLeafOrd.size() - 1; x++)
+
+        System.out.println("");
+
+        for (int x=startOrd; x < endOrd; x++)
         {
             Pair<Integer,Integer> nodeIDLeafOrd = nodeIDToLeafOrd.get(x);
             final long postingsFP = nodeIDToPostingsFP.get(nodeIDLeafOrd.left);
@@ -242,6 +253,7 @@ public class BlockIndexReader
         Pair<Integer, Integer> pair = traverseForMinMaxLeafOrdinals(start, end);
         int min = pair.left;
         int max = pair.right;
+        System.out.println("traverseForNodeIDs pair="+pair);
         if (pair.right == -1)
         {
             max = meta.numLeaves;
@@ -250,7 +262,7 @@ public class BlockIndexReader
         {
             min = 0;
         }
-        Range<Integer> multiBlockRange = multiBlockLeafOrdinalRanges.rangeContaining(max);
+        Range<Integer> multiBlockRange = multiBlockLeafRanges.rangeContaining(max);
         if (multiBlockRange != null)
         {
             max = multiBlockRange.upperEndpoint();
@@ -259,8 +271,10 @@ public class BlockIndexReader
         if (min > 0)
         {
             int prevMin = min - 1;
-            boolean contains = multiBlockLeafOrdinalRanges.contains(prevMin);
-            System.out.println("     prevMin="+prevMin+" contains="+contains);
+            //boolean contains = multiBlockLeafRanges.contains(prevMin);
+            boolean contains = meta.leafValuesSame.get(prevMin);
+            System.out.println("     prevMin="+prevMin+" leafValuesSame="+contains);
+            //if (!contains)
             if (!contains)
             {
                 System.out.println("   min-- min="+min);
@@ -268,7 +282,8 @@ public class BlockIndexReader
             }
         }
 
-        System.out.println("multiBlockRange="+multiBlockRange+" max="+max+" multiBlockLeafOrdinalRanges="+multiBlockLeafOrdinalRanges);
+        System.out.println("multiBlockRange=" + multiBlockRange + " max=" + max + " multiBlockLeafOrdinalRanges=" + multiBlockLeafRanges);
+
         TreeSet<Integer> nodeIDs = traverseIndex(min, max);
         System.out.println("traverseForNodeIDs min/max="+pair+" nodeIDs="+nodeIDs+" min="+min+" max="+max);
         return nodeIDs;
@@ -278,6 +293,8 @@ public class BlockIndexReader
                                       BytesRef targetTerm,
                                       boolean exclusive) throws IOException
     {
+        System.out.println("filterLastLeaf nodeID="+nodeID+" targetTerm="+targetTerm.utf8ToString());
+
         final int leaf = (int) this.nodeIDToLeaf.get(nodeID);
         final long leafFP = this.leafFilePointers.get(leaf);
         readBlock(leafFP);
@@ -298,15 +315,31 @@ public class BlockIndexReader
         int cardinality = idx;
         final int endIdxFinal = endIdx;
 
-        final long orderMapFP = leafToOrderMapFP.get(leaf);
+        System.out.println("endIdxFinal="+endIdxFinal);
+
+        final Long orderMapFP;
+
+        if (leafToOrderMapFP.containsKey(leaf))
+            orderMapFP = leafToOrderMapFP.get(leaf);
+        else
+            orderMapFP = null;
+
         final long postingsFP = nodeIDToPostingsFP.get(nodeID);
-        System.out.println("nodeID=" + nodeID + " postingsFP=" + postingsFP);
+        System.out.println("nodeID=" + nodeID + " postingsFP=" + postingsFP+" orderMapFP="+orderMapFP);
         PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsInput, postingsFP);
         PostingsReader postings = new PostingsReader(postingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
         FilteringPostingList2 filterPostings = new FilteringPostingList2(
         cardinality,
         // get the row id's term ordinal to compare against the end ord
-        (postingsOrd, rowID) -> this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd) <= endIdxFinal,
+        (postingsOrd, rowID) -> {
+            int ord = postingsOrd;
+            if (orderMapFP != null)
+            {
+                ord = (int) this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd);
+            }
+            System.out.println("postingsOrd="+postingsOrd+" ord="+ord+" endIdxFinal="+endIdxFinal+" rowID="+rowID);
+            return ord <= endIdxFinal;
+        },
         postings);
         return filterPostings;
     }
@@ -340,16 +373,31 @@ public class BlockIndexReader
 
         int cardinality = this.leafSize - startIdx;
 
-        final long orderMapFP = leafToOrderMapFP.get(leaf);
+        final Long orderMapFP;
+        if (leafToOrderMapFP.containsKey(leaf))
+        {
+            orderMapFP = leafToOrderMapFP.get(leaf);
+        }
+        else
+        {
+            orderMapFP = null;
+        }
         final long postingsFP = nodeIDToPostingsFP.get(nodeID);
-        System.out.println("nodeID="+nodeID+" postingsFP="+postingsFP+" startIdx="+startIdx);
+        System.out.println("nodeID=" + nodeID + " postingsFP=" + postingsFP + " startIdx=" + startIdx);
         PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsInput, postingsFP);
         PostingsReader postings = new PostingsReader(postingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
         final int startIdxFinal = startIdx;
         FilteringPostingList2 filterPostings = new FilteringPostingList2(
         cardinality,
         // get the row id's term ordinal to compare against the startOrdinal
-        (postingsOrd, rowID) -> this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd) >= startIdxFinal,
+        (postingsOrd, rowID) -> {
+            int ord = postingsOrd;
+            if (orderMapFP != null)
+            {
+                ord = (int) this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd);
+            }
+            return ord >= startIdxFinal;
+        },
         postings);
         return filterPostings;
     }
@@ -423,7 +471,6 @@ public class BlockIndexReader
         {
             if (index.nodeExists())
             {
-                //int nodeID = index.getNodeID();
                 System.out.println("leafNodeID="+nodeID);
                 resultNodeIDs.add(nodeID);
             }
@@ -539,11 +586,7 @@ public class BlockIndexReader
 
             System.out.println("leafOrdinal=" + pair.right + " term=" + new String(ByteSourceInverse.readBytes(pair.left, 10), Charsets.UTF_8));
 
-            if (leafOrdinal == this.leaf)
-            {
-
-            }
-            else
+            if (leafOrdinal != this.leaf)
             {
                 final long leafFP = leafFilePointers.get(leafOrdinal);
                 this.leaf = leafOrdinal;
@@ -606,6 +649,7 @@ public class BlockIndexReader
 
         int start = 0;
 
+        // start from where we left off
         if (seekIndex >= leafIndex)
         {
             start = leafIndex;

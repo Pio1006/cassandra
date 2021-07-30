@@ -152,16 +152,18 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
     public void testSameTerms() throws Exception
     {
         List<Pair<ByteComparable, IntArrayList>> list = new ArrayList();
-        //list.add(add("aaa", new int[] {5, 6})); // 0
+        list.add(add("aaa", new int[] {100, 101})); // 0
         list.add(add("aaabbb", new int[] {0, 1})); // 0
-        list.add(add("aaabbb", new int[] {2, 3})); // 1
-        list.add(add("cccc", new int[] {4, 5})); // 2
-        list.add(add("cccc", new int[] {6})); // 3
-        list.add(add("gggaaaddd", new int[] {7, 8, 9})); // 3, 4
-        list.add(add("gggzzzz", new int[] {10, 11, 12})); // 5, 6
-        list.add(add("zzzzz", new int[] {13, 14, 15})); // 6, 7
-        list.add(add("zzzzz", new int[] {16, 17, 18})); // 8, 9
-        list.add(add("zzzzzzzzzz", new int[] {20, 21})); // 8, 9
+        list.add(add("aaabbb", new int[] {2, 3, 4})); // 1
+        list.add(add("cccc", new int[] {10, 11})); // 2
+        list.add(add("cccc", new int[] {15})); // 3
+        list.add(add("gggaaaddd", new int[] {200, 201, 203})); // 3, 4
+        list.add(add("gggzzzz", new int[] {500, 501, 502, 503, 504})); // 5, 6
+        list.add(add("qqqqqaaaaa", new int[] {400, 405, 409})); // 3, 4
+
+//        list.add(add("zzzzz", new int[] {13, 14, 15})); // 6, 7
+//        list.add(add("zzzzz", new int[] {16, 17, 18})); // 8, 9
+//        list.add(add("zzzzzzzzzz", new int[] {20, 21, 24, 29, 30})); // 8, 9
 
         ByteBuffersDirectory dir = new ByteBuffersDirectory();
         IndexOutput out = dir.createOutput("file", IOContext.DEFAULT);
@@ -209,37 +211,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
                                                            postingsInput,
                                                            meta);
 
-//            SortedSet<Integer> nodeIDs2 = reader.traverseForNodeIDs(ByteComparable.fixedLength("zzzzz".getBytes(StandardCharsets.UTF_8)),
-//                                                                    null);
-//            System.out.println("nodeIDs2=" + nodeIDs2);
-//
-////            Set<Integer> nodeIDs = reader.traverseIndex(3, 4);
-////            System.out.println("nodeIDs=" + nodeIDs);
-//
-//            List<Pair<Integer,Integer>> nodeIDToLeafOrd = new ArrayList<>();
-//
-//            for (int nodeID : nodeIDs2)
-//            {
-//                long leafOrdinal = reader.nodeIDToLeaf.get(nodeID);
-//                Long postingsFP = null;
-//                if (meta.nodeIDPostingsFP.containsKey(nodeID))
-//                {
-//                    postingsFP = meta.nodeIDPostingsFP.get(nodeID);
-//                }
-//
-//                if (postingsFP != null)
-//                    nodeIDToLeafOrd.add(Pair.create(nodeID, (int) leafOrdinal));
-//
-//                System.out.println("nodeID=" + nodeID + " leafOrdinal=" + leafOrdinal + " postingsFP=" + postingsFP);
-//            }
-//
-//            Collections.sort(nodeIDToLeafOrd, (o1, o2) -> Integer.compare(o1.right, o2.right));
-//            //int minNodeID = nodeIDToLeafOrd.get(0).left;
-//            int maxNodeID = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).left;
-//
-//            int minNodeID = nodeIDToLeafOrd.get(0).left;
-
-            PostingList postings = reader.traverse(ByteComparable.fixedLength("gggaaaddd".getBytes(StandardCharsets.UTF_8)),
+            PostingList postings = reader.traverse(ByteComparable.fixedLength("cccc".getBytes(StandardCharsets.UTF_8)),
                                                    ByteComparable.fixedLength("gggzzzz".getBytes(StandardCharsets.UTF_8)));
             while (true)
             {

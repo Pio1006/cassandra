@@ -201,19 +201,18 @@ public class PostingsWriter implements Closeable
 
     private int postingsWritten = 0;
 
-    public void initPostings()
-    {
-        System.out.println("initPostings");
-        postingsWritten = 0;
-        resetBlockCounters();
-        blockOffsets.clear();
-        blockMaxIDs.clear();
-    }
-
     public void add(long rowid) throws IOException
     {
         writePosting(rowid);
         totalPostings++;
+    }
+
+    private void reset()
+    {
+        postingsWritten = 0;
+        resetBlockCounters();
+        blockOffsets.clear();
+        blockMaxIDs.clear();
     }
 
     public long completePostings() throws IOException
@@ -223,6 +222,9 @@ public class PostingsWriter implements Closeable
 
         final long summaryOffset = dataOutput.getFilePointer();
         writeSummary(postingsWritten);
+
+        reset();
+
         return summaryOffset;
     }
 
