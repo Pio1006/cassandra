@@ -25,10 +25,13 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class Version
 {
-    private static final Version AA = new Version('a', 'a');
+    // 6.8 formats
+    public static final Version AA = new Version('a', 'a');
+    // Stargazer
+    public static final Version BA = new Version('b', 'a');
 
     public static final Version EARLIEST = AA;
-    public static final Version LATEST = AA;
+    public static final Version LATEST = BA;
 
     private final String version;
 

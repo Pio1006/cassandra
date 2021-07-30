@@ -15,39 +15,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.index.sai.disk.io;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.base.Throwables;
 
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.SequentialWriterOption;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.lucene.store.IndexInput;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
-public class TrackingIndexComponents extends IndexComponents
+public class TrackingIndexFileUtils extends IndexFileUtils
 {
     private final Map<TrackingIndexInput, String> openInputs = Collections.synchronizedMap(new HashMap<>());
 
-    public TrackingIndexComponents(String indexName, Descriptor descriptor, SequentialWriterOption sequentialWriterOption,
-                                   final CompressionParams compressionParams)
+    public TrackingIndexFileUtils(SequentialWriterOption writerOption)
     {
-        super(indexName, descriptor, sequentialWriterOption, compressionParams);
-    }
+        setWriterOptions(writerOption);
 
-    @Override
-    public IndexInput openBlockingInput(IndexComponent component)
-    {
-        TrackingIndexInput input = new TrackingIndexInput(super.openBlockingInput(component));
-        openInputs.put(input, Throwables.getStackTraceAsString(new RuntimeException("Blocking input created")));
-        return input;
+
+
+
+
+
+
+
     }
 
     @Override
@@ -58,9 +62,23 @@ public class TrackingIndexComponents extends IndexComponents
         return input;
     }
 
+    @Override
+    public IndexInput openBlockingInput(VersionedIndex versionedIndex, IndexComponent.Type type)
+    {
+        TrackingIndexInput input = new TrackingIndexInput(super.openBlockingInput(versionedIndex, type));
+        openInputs.put(input, Throwables.getStackTraceAsString(new RuntimeException("Blocking input created")));
+        return input;
+
+    }
+
     public Map<IndexInput, String> getOpenInputs()
     {
         return new HashMap<>(openInputs);
+    }
+
+    public static void reset()
+    {
+        setWriterOptions(IndexFileUtils.defaultWriterOption);
     }
 
     public class TrackingIndexInput extends FilterIndexInput
@@ -76,6 +94,24 @@ public class TrackingIndexComponents extends IndexComponents
             super.close();
             final String creationStackTrace = openInputs.remove(this);
             assertNotNull("Closed unregistered input: " + this, creationStackTrace);
+        }
+    }
+
+    public static void setWriterOptions(SequentialWriterOption writerOptions)
+    {
+        try
+        {
+            Field instance = IndexFileUtils.class.getDeclaredField("instance");
+            instance.setAccessible(true);
+            Object instanceValue = instance.get(null);
+            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            modifiersField.setAccessible(true);
+            //        modifiersField.setInt(selectivity, selectivity.getModifiers() & ~Modifier.FINAL);
+            //        selectivity.set(null, selectivityLimit);
+        }
+        catch (Throwable e)
+        {
+            fail();
         }
     }
 }

@@ -39,10 +39,12 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.TermsReader;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileHandle;
@@ -130,8 +132,8 @@ public class SegmentFlushTest
 
         writer.flush();
 
-        IndexComponents components = IndexComponents.create(context.getIndexName(), descriptor, null);
-        MetadataSource source = MetadataSource.loadColumnMetadata(components);
+        VersionedIndex versionedIndex = VersionedIndex.create(descriptor, context.getIndexName());
+        MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
 
         // verify segment count
         List<SegmentMetadata> segmentMetadatas = SegmentMetadata.load(source, null);
@@ -148,18 +150,18 @@ public class SegmentFlushTest
         maxTerm = term2;
         numRows = 2;
         verifySegmentMetadata(segmentMetadata);
-        verifyStringIndex(components, segmentMetadata);
+        verifyStringIndex(versionedIndex, segmentMetadata);
     }
 
-    private void verifyStringIndex(IndexComponents components, SegmentMetadata segmentMetadata) throws IOException
+    private void verifyStringIndex(VersionedIndex versionedIndex, SegmentMetadata segmentMetadata) throws IOException
     {
-        FileHandle termsData = components.createFileHandle(components.termsData);
-        FileHandle postingLists = components.createFileHandle(components.postingLists);
+        FileHandle termsData = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
+        FileHandle postingLists = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.POSTING_LISTS);
 
-        long termsFooterPointer = Long.parseLong(segmentMetadata.componentMetadatas.get(IndexComponents.NDIType.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
+        long termsFooterPointer = Long.parseLong(segmentMetadata.componentMetadatas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 
-        try (TermsReader reader = new TermsReader(components, termsData, postingLists,
-                                                  segmentMetadata.componentMetadatas.get(components.termsData.ndiType).root, termsFooterPointer))
+        try (TermsReader reader = new TermsReader(termsData, postingLists,
+                                                  segmentMetadata.componentMetadatas.get(IndexComponent.Type.TERMS_DATA).root, termsFooterPointer))
         {
             TermsIterator iterator = reader.allTerms(0, QueryEventListeners.NO_OP_TRIE_LISTENER);
             assertEquals(minTerm, iterator.getMinTerm());

@@ -33,8 +33,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
@@ -45,7 +45,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 
 /**
- * Multiple {@link SegmentMetadata} are stored in {@link IndexComponents.NDIType#meta} file, each corresponds to an on-disk
+ * Multiple {@link SegmentMetadata} are stored in {@link IndexComponent.Type#META} file, each corresponds to an on-disk
  * index segment.
  */
 public class SegmentMetadata implements Comparable<SegmentMetadata>
@@ -240,24 +240,24 @@ public class SegmentMetadata implements Comparable<SegmentMetadata>
         }
     }
 
-    long getIndexRoot(IndexComponents.IndexComponent component)
+    long getIndexRoot(IndexComponent.Type type)
     {
-        return componentMetadatas.get(component.ndiType).root;
+        return componentMetadatas.get(type).root;
     }
 
-    public long getIndexOffset(IndexComponents.IndexComponent component)
+    public long getIndexOffset(IndexComponent component)
     {
-        return componentMetadatas.get(component.ndiType).offset;
+        return componentMetadatas.get(component.type).offset;
     }
 
-    public long getIndexLength(IndexComponents.IndexComponent component)
+    public long getIndexLength(IndexComponent component)
     {
-        return componentMetadatas.get(component.ndiType).length;
+        return componentMetadatas.get(component.type).length;
     }
 
     public static class ComponentMetadataMap
     {
-        private final Map<IndexComponents.NDIType, ComponentMetadata> metas = new HashMap<>();
+        private final Map<IndexComponent.Type, ComponentMetadata> metas = new HashMap<>();
 
         ComponentMetadataMap(IndexInput input) throws IOException
         {
@@ -265,7 +265,7 @@ public class SegmentMetadata implements Comparable<SegmentMetadata>
 
             for (int i = 0; i < size; i++)
             {
-                metas.put(IndexComponents.NDIType.valueOf(input.readString()), new ComponentMetadata(input));
+                metas.put(IndexComponent.Type.valueOf(input.readString()), new ComponentMetadata(input));
             }
         }
 
@@ -273,42 +273,42 @@ public class SegmentMetadata implements Comparable<SegmentMetadata>
         {
         }
 
-        public void put(IndexComponents.NDIType ndiType, long root, long offset, long length)
+        public void put(IndexComponent.Type type, long root, long offset, long length)
         {
-            metas.put(ndiType, new ComponentMetadata(root, offset, length));
+            metas.put(type, new ComponentMetadata(root, offset, length));
         }
 
-        public void put(IndexComponents.NDIType ndiType, long root, long offset, long length, Map<String, String> additionalMap)
+        public void put(IndexComponent.Type type, long root, long offset, long length, Map<String, String> additionalMap)
         {
-            metas.put(ndiType, new ComponentMetadata(root, offset, length, additionalMap));
+            metas.put(type, new ComponentMetadata(root, offset, length, additionalMap));
         }
 
         private void write(IndexOutput output) throws IOException
         {
             output.writeInt(metas.size());
 
-            for (Map.Entry<IndexComponents.NDIType, ComponentMetadata> entry : metas.entrySet())
+            for (Map.Entry<IndexComponent.Type, ComponentMetadata> entry : metas.entrySet())
             {
                 output.writeString(entry.getKey().name());
                 entry.getValue().write(output);
             }
         }
 
-        public ComponentMetadata get(IndexComponents.NDIType ndiType)
+        public ComponentMetadata get(IndexComponent.Type type)
         {
-            if (!metas.containsKey(ndiType))
-                throw new IllegalArgumentException(ndiType + " ComponentMetadata not found");
+            if (!metas.containsKey(type))
+                throw new IllegalArgumentException(type + " ComponentMetadata not found");
 
-            return metas.get(ndiType);
+            return metas.get(type);
         }
 
         public Map<String, Map<String, String>> asMap()
         {
             Map<String, Map<String, String>> metaAttributes = new HashMap<>();
 
-            for (Map.Entry<IndexComponents.NDIType, ComponentMetadata> entry : metas.entrySet())
+            for (Map.Entry<IndexComponent.Type, ComponentMetadata> entry : metas.entrySet())
             {
-                String name = entry.getKey().name;
+                String name = entry.getKey().name();
                 ComponentMetadata metadata = entry.getValue();
 
                 Map<String, String> componentAttributes = metadata.asMap();

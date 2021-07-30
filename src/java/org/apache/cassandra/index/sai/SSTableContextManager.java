@@ -29,7 +29,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Pair;
 
@@ -61,6 +62,8 @@ public class SSTableContextManager
         Set<SSTableContext> contexts = new HashSet<>();
         Set<SSTableReader> invalid = new HashSet<>();
 
+        VersionedIndex versionedIndex;
+
         for (SSTableReader sstable : added)
         {
             if (sstable.isMarkedCompacted())
@@ -68,7 +71,9 @@ public class SSTableContextManager
                 continue;
             }
 
-            if (!IndexComponents.isGroupIndexComplete(sstable.descriptor))
+            versionedIndex = new VersionedIndex(IndexDescriptor.forSSTable(sstable.descriptor));
+
+            if (!versionedIndex.isGroupIndexComplete())
             {
                 // Don't even try to validate or add the context if the completion marker is missing.
                 continue;
@@ -79,7 +84,7 @@ public class SSTableContextManager
                 // Only validate on restart or newly refreshed SSTable. Newly built files are unlikely to be corrupted.
                 if (validate && !sstableContexts.containsKey(sstable))
                 {
-                    IndexComponents.perSSTable(sstable).validatePerSSTableComponents();
+                    versionedIndex.validatePerSSTableComponents();
                 }
 
                 // ConcurrentHashMap#computeIfAbsent guarantees atomicity, so {@link SSTableContext#create(SSTableReader)}}
@@ -88,8 +93,7 @@ public class SSTableContextManager
             }
             catch (Throwable t)
             {
-                IndexComponents components = IndexComponents.perSSTable(sstable);
-                logger.warn(components.logMessage("Invalid per-SSTable component after sstable {} add.."), sstable.descriptor, t);
+                logger.warn(versionedIndex.logMessage("Invalid per-SSTable component after sstable {} add.."), versionedIndex.descriptor(), t);
                 invalid.add(sstable);
                 SSTableContext failed = sstableContexts.remove(sstable);
                 if (failed != null)

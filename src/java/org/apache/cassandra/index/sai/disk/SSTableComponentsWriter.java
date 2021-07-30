@@ -26,9 +26,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.NumericValuesWriter;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.lucene.util.IOUtils;
@@ -44,8 +46,7 @@ public class SSTableComponentsWriter
     private final NumericValuesWriter offsetWriter;
     private final MetadataWriter metadataWriter;
 
-    private final Descriptor descriptor;
-    private final IndexComponents indexComponents;
+    private final VersionedIndex versionedIndex;
 
     private DecoratedKey currentKey;
 
@@ -53,23 +54,21 @@ public class SSTableComponentsWriter
 
     public SSTableComponentsWriter(Descriptor descriptor, CompressionParams compressionParams) throws IOException
     {
-        this.descriptor = descriptor;
+        versionedIndex = VersionedIndex.create(descriptor);
 
-        indexComponents = IndexComponents.perSSTable(descriptor, compressionParams);
-        this.metadataWriter = new MetadataWriter(indexComponents.createOutput(IndexComponents.GROUP_META));
+        this.metadataWriter = new MetadataWriter(IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.GROUP_META));
 
-        this.tokenWriter = new NumericValuesWriter(IndexComponents.TOKEN_VALUES,
-                                                   indexComponents.createOutput(IndexComponents.TOKEN_VALUES),
+        this.tokenWriter = new NumericValuesWriter(IndexComponent.TOKEN_VALUES,
+                                                   IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.TOKEN_VALUES),
                                                    metadataWriter, false);
-        this.offsetWriter = new NumericValuesWriter(IndexComponents.OFFSETS_VALUES,
-                                                    indexComponents.createOutput(IndexComponents.OFFSETS_VALUES),
+        this.offsetWriter = new NumericValuesWriter(IndexComponent.OFFSETS_VALUES,
+                                                    IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.OFFSETS_VALUES),
                                                     metadataWriter, true);
     }
 
     private SSTableComponentsWriter()
     {
-        this.descriptor = null;
-        this.indexComponents = null;
+        this.versionedIndex = null;
         this.metadataWriter = null;
         this.tokenWriter = null;
         this.offsetWriter = null;
@@ -106,13 +105,13 @@ public class SSTableComponentsWriter
     public void complete() throws IOException
     {
         IOUtils.close(tokenWriter, offsetWriter, metadataWriter);
-        indexComponents.createGroupCompletionMarker();
+        IndexFileUtils.instance.createComponent(versionedIndex, IndexComponent.Type.GROUP_COMPLETION_MARKER);
     }
 
     public void abort(Throwable accumulator)
     {
-        logger.debug(indexComponents.logMessage("Aborting token/offset writer for {}..."), descriptor);
-        IndexComponents.deletePerSSTableIndexComponents(descriptor);
+        logger.debug(versionedIndex.logMessage("Aborting token/offset writer for {}..."), versionedIndex.descriptor());
+        versionedIndex.deletePerSSTableIndexComponents();
     }
 
     public static final SSTableComponentsWriter NONE = new SSTableComponentsWriter() {

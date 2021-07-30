@@ -28,8 +28,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.io.BytesRefUtil;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.disk.v1.BKDTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.NumericIndexWriter;
@@ -106,9 +106,9 @@ public abstract class SegmentBuilder
         }
 
         @Override
-        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexComponents indexComponents) throws IOException
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(VersionedIndex versionedIndex) throws IOException
         {
-            try (NumericIndexWriter writer = new NumericIndexWriter(indexComponents,
+            try (NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
                                                                     TypeUtil.fixedSizeOf(termComparator),
                                                                     maxSegmentRowId,
                                                                     rowCount,
@@ -146,9 +146,9 @@ public abstract class SegmentBuilder
         }
 
         @Override
-        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexComponents indexComponents) throws IOException
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(VersionedIndex versionedIndex) throws IOException
         {
-            try (InvertedIndexWriter writer = new InvertedIndexWriter(indexComponents, true))
+            try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, true))
             {
                 return writer.writeAll(ramIndexer.getTermsWithPostings());
             }
@@ -164,18 +164,18 @@ public abstract class SegmentBuilder
         minimumFlushBytes = limiter.limitBytes() / ACTIVE_BUILDER_COUNT.getAndIncrement();
     }
 
-    public SegmentMetadata flush(final IndexComponents indexComponents) throws IOException
+    public SegmentMetadata flush(VersionedIndex versionedIndex) throws IOException
     {
         assert !flushed;
         flushed = true;
 
         if (getRowCount() == 0)
         {
-            logger.warn(indexComponents.logMessage("No rows to index during flush of SSTable {}."), indexComponents.descriptor);
+            logger.warn(versionedIndex.logMessage("No rows to index during flush of SSTable {}."), versionedIndex.descriptor());
             return null;
         }
 
-        SegmentMetadata.ComponentMetadataMap indexMetas = flushInternal(indexComponents);
+        SegmentMetadata.ComponentMetadataMap indexMetas = flushInternal(versionedIndex);
 
         return new SegmentMetadata(segmentRowIdOffset, rowCount, minSSTableRowId, maxSSTableRowId, minKey, maxKey, minTerm, maxTerm, indexMetas);
     }
@@ -244,11 +244,11 @@ public abstract class SegmentBuilder
      * 2.) It releases the builder's memory against its limiter.
      * 3.) It defensively marks the builder inactive to make sure nothing bad happens if we try to close it twice.
      *
-     * @param indexComponents
+     * @param versionedIndex
      *
      * @return the number of bytes currently used by the memory limiter
      */
-    long release(IndexComponents indexComponents)
+    long release(VersionedIndex versionedIndex)
     {
         if (active)
         {
@@ -258,7 +258,7 @@ public abstract class SegmentBuilder
             return used;
         }
 
-        logger.warn(indexComponents.logMessage("Attempted to release storage attached index segment builder memory after builder marked inactive."));
+        logger.warn(versionedIndex.logMessage("Attempted to release storage attached index segment builder memory after builder marked inactive."));
         return limiter.currentBytesUsed();
     }
 
@@ -266,7 +266,7 @@ public abstract class SegmentBuilder
 
     protected abstract long addInternal(ByteBuffer term, int segmentRowId);
 
-    protected abstract SegmentMetadata.ComponentMetadataMap flushInternal(IndexComponents indexComponents) throws IOException;
+    protected abstract SegmentMetadata.ComponentMetadataMap flushInternal(VersionedIndex versionedIndex) throws IOException;
 
     int getRowCount()
     {

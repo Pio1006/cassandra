@@ -29,8 +29,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.lucene.codecs.CodecUtil;
@@ -46,8 +48,8 @@ public class MetadataTest extends NdiRandomizedTest
     public void shouldReadWrittenMetadata() throws Exception
     {
         final Map<String, byte[]> data = new HashMap<>();
-        final IndexComponents components = newIndexComponents();
-        try (MetadataWriter writer = new MetadataWriter(components.createOutput(components.meta)))
+        final VersionedIndex versionedIndex = newVersionedIndex();
+        try (MetadataWriter writer = new MetadataWriter(IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.META)))
         {
             int num = nextInt(1, 50);
             for (int x = 0; x < num; x++)
@@ -63,7 +65,7 @@ public class MetadataTest extends NdiRandomizedTest
                 }
             }
         }
-        MetadataSource reader = MetadataSource.loadColumnMetadata(components);
+        MetadataSource reader = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
 
         for (Map.Entry<String, byte[]> entry : data.entrySet())
         {
@@ -80,8 +82,8 @@ public class MetadataTest extends NdiRandomizedTest
     @Test
     public void shouldFailWhenFileHasNoHeader() throws IOException
     {
-        IndexComponents components = newIndexComponents();
-        try (IndexOutputWriter out = components.createOutput(components.meta))
+        VersionedIndex versionedIndex = newVersionedIndex();
+        try (IndexOutputWriter out = IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.META))
         {
             final byte[] bytes = nextBytes(13, 29);
             out.writeBytes(bytes, bytes.length);
@@ -89,14 +91,14 @@ public class MetadataTest extends NdiRandomizedTest
 
         expectedException.expect(CorruptIndexException.class);
         expectedException.expectMessage("codec header mismatch");
-        MetadataSource.loadColumnMetadata(components);
+        MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
     }
 
     @Test
     public void shouldFailCrcCheckWhenFileIsTruncated() throws IOException
     {
-        final IndexComponents components = newIndexComponents();
-        final IndexOutputWriter output = writeRandomBytes(components);
+        final VersionedIndex versionedIndex = newVersionedIndex();
+        final IndexOutputWriter output = writeRandomBytes(versionedIndex);
 
         final File indexFile = new File(output.getPath());
         final long length = indexFile.length();
@@ -114,14 +116,14 @@ public class MetadataTest extends NdiRandomizedTest
 
         expectedException.expect(CorruptIndexException.class);
         expectedException.expectMessage("misplaced codec footer (file truncated?)");
-        MetadataSource.loadColumnMetadata(components);
+        MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
     }
 
     @Test
     public void shouldFailCrcCheckWhenFileIsCorrupted() throws IOException
     {
-        final IndexComponents components = newIndexComponents();
-        final IndexOutputWriter output = writeRandomBytes(components);
+        final VersionedIndex versionedIndex = newVersionedIndex();
+        final IndexOutputWriter output = writeRandomBytes(versionedIndex);
 
         final File indexFile = new File(output.getPath());
         final long length = indexFile.length();
@@ -150,12 +152,12 @@ public class MetadataTest extends NdiRandomizedTest
 
         expectedException.expect(CorruptIndexException.class);
         expectedException.expectMessage("checksum failed");
-        MetadataSource.loadColumnMetadata(components);
+        MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
     }
 
-    private IndexOutputWriter writeRandomBytes(IndexComponents indexComponents) throws IOException
+    private IndexOutputWriter writeRandomBytes(VersionedIndex versionedIndex) throws IOException
     {
-        final IndexOutputWriter output = indexComponents.createOutput(indexComponents.meta);
+        final IndexOutputWriter output = IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.META);
         try (MetadataWriter writer = new MetadataWriter(output))
         {
             byte[] bytes = nextBytes(11, 1024);

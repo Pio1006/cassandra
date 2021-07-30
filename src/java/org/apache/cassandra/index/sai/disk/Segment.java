@@ -34,6 +34,7 @@ import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.LongArray;
+import org.apache.cassandra.index.sai.utils.PerIndexFiles;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -54,14 +55,14 @@ public class Segment implements Closeable
     final LongArray.Factory segmentRowIdToOffsetFactory;
     final SSTableContext.KeyFetcher keyFetcher;
     // per-index
-    public final SSTableIndex.PerIndexFiles indexFiles;
+    public final PerIndexFiles indexFiles;
     // per-segment
     public final SegmentMetadata metadata;
 
     private final IndexSearcher index;
     private final AbstractType<?> columnType;
 
-    public Segment(ColumnContext columnContext, SSTableContext sstableContext, SSTableIndex.PerIndexFiles indexFiles, SegmentMetadata metadata) throws IOException
+    public Segment(ColumnContext columnContext, SSTableContext sstableContext, PerIndexFiles indexFiles, SegmentMetadata metadata) throws IOException
     {
         this.minKey = metadata.minKey.getToken();
         this.minKeyBound = minKey.minKeyBound();
@@ -80,7 +81,7 @@ public class Segment implements Closeable
 
     @VisibleForTesting
     public Segment(LongArray.Factory tokenFactory, LongArray.Factory offsetFactory, SSTableContext.KeyFetcher keyFetcher,
-                   SSTableIndex.PerIndexFiles indexFiles, SegmentMetadata metadata, AbstractType<?> columnType)
+                   PerIndexFiles indexFiles, SegmentMetadata metadata, AbstractType<?> columnType)
     {
         this.segmentRowIdToTokenFactory = tokenFactory;
         this.segmentRowIdToOffsetFactory = offsetFactory;

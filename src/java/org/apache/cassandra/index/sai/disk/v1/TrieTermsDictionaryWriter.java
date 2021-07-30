@@ -23,8 +23,10 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang3.mutable.MutableLong;
 
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
 import org.apache.cassandra.io.tries.IncrementalTrieWriter;
@@ -43,9 +45,9 @@ public class TrieTermsDictionaryWriter implements Closeable
     private final IndexOutputWriter termDictionaryOutput;
     private final long startOffset;
 
-    TrieTermsDictionaryWriter(IndexComponents indexComponents, boolean segmented) throws IOException
+    TrieTermsDictionaryWriter(VersionedIndex versionedIndex, boolean segmented) throws IOException
     {
-        termDictionaryOutput = indexComponents.createOutput(indexComponents.termsData, true, segmented);
+        termDictionaryOutput = IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.TERMS_DATA, true, segmented);
         startOffset = termDictionaryOutput.getFilePointer();
 
         SAICodecUtils.writeHeader(termDictionaryOutput);

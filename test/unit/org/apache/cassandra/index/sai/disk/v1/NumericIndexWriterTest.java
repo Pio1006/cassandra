@@ -31,9 +31,11 @@ import org.apache.cassandra.index.sai.disk.MutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.utils.AbstractIterator;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.util.FileHandle;
@@ -67,12 +69,12 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
 
         final MutableOneDimPointValues pointValues = ramBuffer.asPointValues();
 
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         int docCount = pointValues.getDocCount();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
-        try (NumericIndexWriter writer = new NumericIndexWriter(indexComponents,
+        try (NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
                                                                 Integer.BYTES,
                                                                 docCount, docCount,
                                                                 IndexWriterConfig.defaultConfig("test"),
@@ -81,14 +83,13 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
             indexMetas = writer.writeAll(pointValues);
         }
 
-        final FileHandle kdtree = indexComponents.createFileHandle(indexComponents.kdTree);
-        final FileHandle kdtreePostings = indexComponents.createFileHandle(indexComponents.kdTreePostingLists);
+        final FileHandle kdtree = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE);
+        final FileHandle kdtreePostings = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE_POSTING_LISTS);
 
-        try (BKDReader reader = new BKDReader(indexComponents,
-                                              kdtree,
-                                              indexMetas.get(indexComponents.kdTree.ndiType).root,
+        try (BKDReader reader = new BKDReader(kdtree,
+                                              indexMetas.get(IndexComponent.Type.KD_TREE).root,
                                               kdtreePostings,
-                                              indexMetas.get(indexComponents.kdTreePostingLists.ndiType).root
+                                              indexMetas.get(IndexComponent.Type.KD_TREE_POSTING_LISTS).root
         ))
         {
             final Counter visited = Counter.newCounter();
@@ -123,10 +124,10 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
         final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues
                 .fromTermEnum(termEnum, Int32Type.instance);
 
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (NumericIndexWriter writer = new NumericIndexWriter(indexComponents,
+        try (NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
                                                                 TypeUtil.fixedSizeOf(Int32Type.instance),
                                                                 maxSegmentRowId, maxSegmentRowId,
                                                                 IndexWriterConfig.defaultConfig("test"), false))
@@ -134,14 +135,13 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
             indexMetas = writer.writeAll(pointValues);
         }
 
-        final FileHandle kdtree = indexComponents.createFileHandle(indexComponents.kdTree);
-        final FileHandle kdtreePostings = indexComponents.createFileHandle(indexComponents.kdTreePostingLists);
+        final FileHandle kdtree = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE);
+        final FileHandle kdtreePostings = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE_POSTING_LISTS);
 
-        try (BKDReader reader = new BKDReader(indexComponents,
-                                              kdtree,
-                                              indexMetas.get(indexComponents.kdTree.ndiType).root,
+        try (BKDReader reader = new BKDReader(kdtree,
+                                              indexMetas.get(IndexComponent.Type.KD_TREE).root,
                                               kdtreePostings,
-                                              indexMetas.get(indexComponents.kdTreePostingLists.ndiType).root
+                                              indexMetas.get(IndexComponent.Type.KD_TREE_POSTING_LISTS).root
         ))
         {
             final Counter visited = Counter.newCounter();

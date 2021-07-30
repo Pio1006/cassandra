@@ -63,7 +63,6 @@ import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.IndexSearcher;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
@@ -505,7 +504,7 @@ public class ColumnContext
      * @return the indexes that are built on the given SSTables on the left and corrupted indexes'
      * corresponding contexts on the right
      */
-    public Pair<Set<SSTableIndex>, Set<SSTableContext>> getBuiltIndexes(Collection<SSTableContext> sstableContexts, boolean validate, boolean rename)
+    public Pair<Set<SSTableIndex>, Set<SSTableContext>> getBuiltIndexes(Collection<SSTableContext> sstableContexts, boolean validate)
     {
         Set<SSTableIndex> valid = new HashSet<>(sstableContexts.size());
         Set<SSTableContext> invalid = new HashSet<>();
@@ -515,13 +514,13 @@ public class ColumnContext
             if (context.sstable.isMarkedCompacted())
                 continue;
 
-            if (!IndexComponents.isColumnIndexComplete(context.descriptor(), getIndexName()))
+            if (!context.isColumnIndexComplete(getIndexName()))
             {
                 logger.debug(logMessage("An on-disk index build for SSTable {} has not completed."), context.descriptor());
                 continue;
             }
 
-            if (IndexComponents.isColumnIndexEmpty(context.descriptor(), getIndexName()))
+            if (context.isColumnIndexEmpty(getIndexName()))
             {
                 logger.debug(logMessage("No on-disk index was built for SSTable {} because the SSTable " +
                                                 "had no indexable rows for the index."), context.descriptor());
@@ -529,16 +528,17 @@ public class ColumnContext
             }
 
             // TODO: does the column name need to be encoded since it's being included in a filename?
-            final IndexComponents components = IndexComponents.create(getIndexName(), context.sstable());
+//            final IndexComponents components = IndexComponents.create(getIndexName(), context.sstable());
 
             try
             {
                 if (validate)
                 {
-                    components.validatePerColumnComponents(isLiteral());
+                    //TODO Fix
+//                    components.validatePerColumnComponents(isLiteral());
                 }
 
-                SSTableIndex index = new SSTableIndex(context, this, components);
+                SSTableIndex index = new SSTableIndex(context, this);
                 logger.debug(logMessage("Successfully created index for SSTable {}."), context.descriptor());
 
                 // Try to add new index to the set, if set already has such index, we'll simply release and move on.

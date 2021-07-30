@@ -31,9 +31,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
@@ -59,20 +59,18 @@ public class TermsReader implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    private final IndexComponents indexComponents;
     private final FileHandle termDictionaryFile;
     private final FileHandle postingsFile;
     private final long termDictionaryRoot;
 
-    public TermsReader(IndexComponents components, FileHandle termsData, FileHandle postingLists,
+    public TermsReader(FileHandle termsData, FileHandle postingLists,
                        long root, long termsFooterPointer) throws IOException
     {
-        this.indexComponents = components;
         termDictionaryFile = termsData;
         postingsFile = postingLists;
         termDictionaryRoot = root;
 
-        try (final IndexInput indexInput = indexComponents.openInput(termDictionaryFile))
+        try (final IndexInput indexInput = IndexFileUtils.instance.openInput(termDictionaryFile))
         {
             // if the pointer is -1 then this is a previous version of the index
             // use the old way to validate the footer
@@ -87,7 +85,7 @@ public class TermsReader implements Closeable
             }
         }
 
-        try (final IndexInput indexInput = indexComponents.openInput(postingsFile))
+        try (final IndexInput indexInput = IndexFileUtils.instance.openInput(postingsFile))
         {
             validate(indexInput);
         }
@@ -138,8 +136,8 @@ public class TermsReader implements Closeable
         TermQuery(ByteComparable term, QueryEventListener.TrieIndexEventListener listener, QueryContext context)
         {
             this.listener = listener;
-            postingsInput = indexComponents.openInput(postingsFile);
-            postingsSummaryInput = indexComponents.openInput(postingsFile);
+            postingsInput = IndexFileUtils.instance.openInput(postingsFile);
+            postingsSummaryInput = IndexFileUtils.instance.openInput(postingsFile);
             this.term = term;
             lookupStartTime = System.nanoTime();
             this.context = context;
@@ -165,8 +163,9 @@ public class TermsReader implements Closeable
             catch (Throwable e)
             {
                 //TODO Is there an equivalent of AOE in OS?
-                if (!(e instanceof AbortedOperationException))
-                    logger.error(indexComponents.logMessage("Failed to execute term query"), e);
+                //TODO Fix logging
+//                if (!(e instanceof AbortedOperationException))
+//                    logger.error(indexComponents.logMessage("Failed to execute term query"), e);
 
                 closeOnException();
                 throw Throwables.cleaned(e);
@@ -228,7 +227,7 @@ public class TermsReader implements Closeable
         public PostingList postings() throws IOException
         {
             assert entry != null;
-            final IndexInput input = indexComponents.openInput(postingsFile);
+            final IndexInput input = IndexFileUtils.instance.openInput(postingsFile);
             return new OffsetPostingList(segmentOffset, new PostingsReader(input, new PostingsReader.BlocksSummary(input, entry.right), listener.postingListEventListener()));
         }
 

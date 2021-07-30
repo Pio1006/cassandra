@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.PostingList;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.PackedLongValues;
@@ -71,15 +71,15 @@ public class OneDimBKDPostingsWriter implements TraversingBKDReader.IndexTreeTra
     private final Multimap<Integer, Integer> nodeToChildLeaves = HashMultimap.create();
 
     private final IndexWriterConfig config;
-    private final IndexComponents components;
+    private final VersionedIndex versionedIndex;
     int numNonLeafPostings = 0;
     int numLeafPostings = 0;
 
-    OneDimBKDPostingsWriter(List<PackedLongValues> postings, IndexWriterConfig config, IndexComponents indexComponents)
+    OneDimBKDPostingsWriter(List<PackedLongValues> postings, IndexWriterConfig config, VersionedIndex versionedIndex)
     {
         this.postings = postings;
         this.config = config;
-        this.components = indexComponents;
+        this.versionedIndex = versionedIndex;
     }
 
     @Override
@@ -125,7 +125,7 @@ public class OneDimBKDPostingsWriter implements TraversingBKDReader.IndexTreeTra
 
         final Collection<Integer> leafNodeIDs = leafOffsetToNodeID.values();
 
-        logger.debug(components.logMessage("Writing posting lists for {} internal and {} leaf kd-tree nodes. Leaf postings memory usage: {}."),
+        logger.debug(versionedIndex.logMessage("Writing posting lists for {} internal and {} leaf kd-tree nodes. Leaf postings memory usage: {}."),
                      internalNodeIDs.size(), leafNodeIDs.size(), FBUtilities.prettyPrintMemory(postingsRamBytesUsed));
 
         final long startFP = out.getFilePointer();
@@ -157,7 +157,7 @@ public class OneDimBKDPostingsWriter implements TraversingBKDReader.IndexTreeTra
                 nodeIDToPostingsFilePointer.put(nodeID, postingFilePosition);
         }
         flushTime.stop();
-        logger.debug(components.logMessage("Flushed {} of posting lists for kd-tree nodes in {} ms."),
+        logger.debug(versionedIndex.logMessage("Flushed {} of posting lists for kd-tree nodes in {} ms."),
                      FBUtilities.prettyPrintMemory(out.getFilePointer() - startFP),
                      flushTime.elapsed(TimeUnit.MILLISECONDS));
 

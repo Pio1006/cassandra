@@ -35,13 +35,14 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.index.sai.utils.LongArrays;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
+import org.apache.cassandra.index.sai.utils.PerIndexFiles;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.StorageService;
@@ -163,10 +164,10 @@ public class InvertedIndexSearcherTest extends NdiRandomizedTest
     private IndexSearcher buildIndexAndOpenSearcher(int terms, int postings, List<Pair<ByteComparable, IntArrayList>> termsEnum) throws IOException
     {
         final int size = terms * postings;
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexComponents, false))
+        try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, false))
         {
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
@@ -181,7 +182,7 @@ public class InvertedIndexSearcherTest extends NdiRandomizedTest
                                                                     wrap(termsEnum.get(terms - 1).left),
                                                                     indexMetas);
 
-        try (SSTableIndex.PerIndexFiles indexFiles = new SSTableIndex.PerIndexFiles(indexComponents, true))
+        try (PerIndexFiles indexFiles = new PerIndexFiles(versionedIndex, true))
         {
             final LongArray.Factory factory = () -> LongArrays.identity().build();
             Segment segment = new Segment(factory, factory, KEY_FETCHER, indexFiles, segmentMetadata, UTF8Type.instance);

@@ -30,7 +30,9 @@ import org.apache.cassandra.index.sai.disk.MergeOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.MutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.lucene.index.PointValues.Relation;
@@ -130,11 +132,11 @@ public class BKDReaderTest extends NdiRandomizedTest
         reader1 = createReader(10);
         BKDReader reader2 = createReader(10);
 
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
 
         List<BKDReader.IteratorState> iterators = ImmutableList.of(reader1.iteratorState(), reader2.iteratorState((rowID) -> rowID + 10));
         MergeOneDimPointValues merger = new MergeOneDimPointValues(iterators, Int32Type.instance);
-        final BKDReader reader = finishAndOpenReaderOneDim(2, merger, 20, indexComponents);
+        final BKDReader reader = finishAndOpenReaderOneDim(2, merger, 20, versionedIndex);
 
         final int queryMin = 8;
         final int queryMax = 9;
@@ -160,7 +162,7 @@ public class BKDReaderTest extends NdiRandomizedTest
 
     private BKDReader createReader(int numRows) throws IOException
     {
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(1, Integer.BYTES);
         byte[] scratch = new byte[4];
         for (int docID = 0; docID < numRows; docID++)
@@ -168,12 +170,12 @@ public class BKDReaderTest extends NdiRandomizedTest
             NumericUtils.intToSortableBytes(docID, scratch, 0);
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
-        return finishAndOpenReaderOneDim(2, buffer, indexComponents);
+        return finishAndOpenReaderOneDim(2, buffer, versionedIndex);
     }
 
     private void doTestInts1D() throws IOException
     {
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final int numRows = between(100, 400);
         final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(1, Integer.BYTES);
 
@@ -184,7 +186,7 @@ public class BKDReaderTest extends NdiRandomizedTest
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BKDReader reader = finishAndOpenReaderOneDim(2, buffer, indexComponents);
+        final BKDReader reader = finishAndOpenReaderOneDim(2, buffer, versionedIndex);
 
         try (BKDReader.IteratorState iterator = reader.iteratorState())
         {
@@ -249,7 +251,7 @@ public class BKDReaderTest extends NdiRandomizedTest
 
     private void doTestAdvance(boolean crypto) throws IOException
     {
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final int numRows = between(1000, 2000);
         final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(1, Integer.BYTES);
 
@@ -260,7 +262,7 @@ public class BKDReaderTest extends NdiRandomizedTest
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BKDReader reader = finishAndOpenReaderOneDim(2, buffer, indexComponents);
+        final BKDReader reader = finishAndOpenReaderOneDim(2, buffer, versionedIndex);
 
         PostingList intersection = reader.intersect(NONE_MATCH, NO_OP_BKD_LISTENER, new QueryContext());
         assertNull(intersection);
@@ -286,7 +288,7 @@ public class BKDReaderTest extends NdiRandomizedTest
     @Test
     public void testResourcesReleaseWhenQueryDoesntMatchAnything() throws Exception
     {
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(1, Integer.BYTES);
         byte[] scratch = new byte[4];
         for (int docID = 0; docID < 1000; docID++)
@@ -301,7 +303,7 @@ public class BKDReaderTest extends NdiRandomizedTest
             buffer.addPackedValue(docID, new BytesRef(scratch));
         }
 
-        final BKDReader reader = finishAndOpenReaderOneDim(50, buffer, indexComponents);
+        final BKDReader reader = finishAndOpenReaderOneDim(50, buffer, versionedIndex);
 
         final PostingList intersection = reader.intersect(buildQuery(1017, 1096), NO_OP_BKD_LISTENER, new QueryContext());
         assertNull(intersection);
@@ -343,9 +345,9 @@ public class BKDReaderTest extends NdiRandomizedTest
         };
     }
 
-    private BKDReader finishAndOpenReaderOneDim(int maxPointsPerLeaf, BKDTreeRamBuffer buffer, IndexComponents indexComponents) throws IOException
+    private BKDReader finishAndOpenReaderOneDim(int maxPointsPerLeaf, BKDTreeRamBuffer buffer, VersionedIndex versionedIndex) throws IOException
     {
-        final NumericIndexWriter writer = new NumericIndexWriter(indexComponents,
+        final NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
                                                                  maxPointsPerLeaf,
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(buffer.numRows()),
@@ -354,23 +356,22 @@ public class BKDReaderTest extends NdiRandomizedTest
                                                                  false);
 
         final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(buffer.asPointValues());
-        final long bkdPosition = metadata.get(IndexComponents.NDIType.KD_TREE).root;
+        final long bkdPosition = metadata.get(IndexComponent.Type.KD_TREE).root;
         assertThat(bkdPosition, is(greaterThan(0L)));
-        final long postingsPosition = metadata.get(IndexComponents.NDIType.KD_TREE_POSTING_LISTS).root;
+        final long postingsPosition = metadata.get(IndexComponent.Type.KD_TREE_POSTING_LISTS).root;
         assertThat(postingsPosition, is(greaterThan(0L)));
 
-        FileHandle kdtree = indexComponents.createFileHandle(indexComponents.kdTree);
-        FileHandle kdtreePostings = indexComponents.createFileHandle(indexComponents.kdTreePostingLists);
-        return new BKDReader(indexComponents,
-                             kdtree,
+        FileHandle kdtree = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE);
+        FileHandle kdtreePostings = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE_POSTING_LISTS);
+        return new BKDReader(kdtree,
                              bkdPosition,
                              kdtreePostings,
                              postingsPosition);
     }
 
-    private BKDReader finishAndOpenReaderOneDim(int maxPointsPerLeaf, MutableOneDimPointValues values, int numRows, IndexComponents indexComponents) throws IOException
+    private BKDReader finishAndOpenReaderOneDim(int maxPointsPerLeaf, MutableOneDimPointValues values, int numRows, VersionedIndex versionedIndex) throws IOException
     {
-        final NumericIndexWriter writer = new NumericIndexWriter(indexComponents,
+        final NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
                                                                  maxPointsPerLeaf,
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(numRows),
@@ -379,15 +380,14 @@ public class BKDReaderTest extends NdiRandomizedTest
                                                                  false);
 
         final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(values);
-        final long bkdPosition = metadata.get(IndexComponents.NDIType.KD_TREE).root;
+        final long bkdPosition = metadata.get(IndexComponent.Type.KD_TREE).root;
         assertThat(bkdPosition, is(greaterThan(0L)));
-        final long postingsPosition = metadata.get(IndexComponents.NDIType.KD_TREE_POSTING_LISTS).root;
+        final long postingsPosition = metadata.get(IndexComponent.Type.KD_TREE_POSTING_LISTS).root;
         assertThat(postingsPosition, is(greaterThan(0L)));
 
-        FileHandle kdtree = indexComponents.createFileHandle(indexComponents.kdTree);
-        FileHandle kdtreePostings = indexComponents.createFileHandle(indexComponents.kdTreePostingLists);
-        return new BKDReader(indexComponents,
-                             kdtree,
+        FileHandle kdtree = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE);
+        FileHandle kdtreePostings = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE_POSTING_LISTS);
+        return new BKDReader(kdtree,
                              bkdPosition,
                              kdtreePostings,
                              postingsPosition);

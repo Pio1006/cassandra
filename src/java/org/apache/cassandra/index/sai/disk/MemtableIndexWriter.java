@@ -31,12 +31,15 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.ColumnContext;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.NumericIndexWriter;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.memory.RowMapping;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.schema.CompressionParams;
@@ -55,7 +58,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
     private final RowMapping rowMapping;
     private final ColumnContext context;
     private final Descriptor descriptor;
-    private final IndexComponents indexComponents;
+    private final VersionedIndex versionedIndex;
 
     public MemtableIndexWriter(MemtableIndex memtable,
                                Descriptor descriptor,
@@ -70,7 +73,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
         this.context = context;
         this.descriptor = descriptor;
 
-        this.indexComponents = IndexComponents.create(context.getIndexName(), descriptor, compressionParams);
+        this.versionedIndex = new VersionedIndex(IndexDescriptor.latest(descriptor), context.getIndexName(), context.isLiteral());
     }
 
     @Override
@@ -85,7 +88,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
     public void abort(Throwable cause)
     {
         logger.warn(context.logMessage("Aborting index memtable flush for {}..."), descriptor, cause);
-        indexComponents.deleteColumnIndex();
+        versionedIndex.deleteColumnIndex();
     }
 
     @Override
@@ -100,7 +103,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
                 logger.debug(context.logMessage("No indexed rows to flush from SSTable {}."), descriptor);
                 // Write a completion marker even though we haven't written anything to the index
                 // so we won't try to build the index again for the SSTable
-                indexComponents.createColumnCompletionMarker();
+                IndexFileUtils.instance.createComponent(versionedIndex, IndexComponent.Type.COLUMN_COMPLETION_MARKER);
                 return;
             }
 
@@ -113,7 +116,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
             {
                 long cellCount = flush(minKey, maxKey, context.getValidator(), terms, rowMapping.maxSegmentRowId);
 
-                indexComponents.createColumnCompletionMarker();
+                IndexFileUtils.instance.createComponent(versionedIndex, IndexComponent.Type.COLUMN_COMPLETION_MARKER);
 
                 context.getIndexMetrics().memtableIndexFlushCount.inc();
 
@@ -143,7 +146,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
 
         if (TypeUtil.isLiteral(termComparator))
         {
-            try (InvertedIndexWriter writer = new InvertedIndexWriter(indexComponents, false))
+            try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, false))
             {
                 indexMetas = writer.writeAll(terms);
                 numRows = writer.getPostingsCount();
@@ -151,7 +154,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
         }
         else
         {
-            try (NumericIndexWriter writer = new NumericIndexWriter(indexComponents,
+            try (NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
                                                                     TypeUtil.fixedSizeOf(termComparator),
                                                                     maxSegmentRowId,
                                                                     // Due to stale entries in IndexMemtable, we may have more indexed rows than num of rowIds.
@@ -168,7 +171,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
         // so that the index is correctly identified as being empty (only having a completion marker)
         if (numRows == 0)
         {
-            indexComponents.deleteColumnIndex();
+            versionedIndex.deleteColumnIndex();
             return 0;
         }
 
@@ -176,7 +179,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
         SegmentMetadata metadata = new SegmentMetadata(0, numRows, terms.getMinSSTableRowId(), terms.getMaxSSTableRowId(),
                                                        minKey, maxKey, terms.getMinTerm(), terms.getMaxTerm(), indexMetas);
 
-        try (MetadataWriter writer = new MetadataWriter(indexComponents.createOutput(indexComponents.meta)))
+        try (MetadataWriter writer = new MetadataWriter(IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.META)))
         {
             SegmentMetadata.write(writer, Collections.singletonList(metadata), null);
         }

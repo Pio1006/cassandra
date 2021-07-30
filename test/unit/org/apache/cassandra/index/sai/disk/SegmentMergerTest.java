@@ -31,8 +31,10 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -183,12 +185,12 @@ public class SegmentMergerTest extends SAITester
         File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
         Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), generation, SSTableFormat.Type.current());
         TableMetadata table = currentTableMetadata();
-        assertTrue(IndexComponents.isGroupIndexComplete(descriptor));
+        assertTrue(VersionedIndex.create(descriptor).isGroupIndexComplete());
         IndexMetadata index = table.indexes.get(indexName).get();
         ColumnContext context = new ColumnContext(table, index);
-        assertTrue(IndexComponents.isColumnIndexComplete(descriptor, context.getIndexName()));
-        IndexComponents components = IndexComponents.create(context.getIndexName(), descriptor, table.params.compression);
-        final MetadataSource source = MetadataSource.loadColumnMetadata(components);
+        assertTrue(VersionedIndex.create(descriptor, context.getIndexName()).isColumnIndexComplete());
+        VersionedIndex versionedIndex = VersionedIndex.create(descriptor, context.getIndexName());
+        final MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
         return SegmentMetadata.load(source, null);
     }
 }

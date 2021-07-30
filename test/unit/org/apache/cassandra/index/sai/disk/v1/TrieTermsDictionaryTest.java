@@ -27,7 +27,9 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.junit.Test;
 
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -47,10 +49,10 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
 
     private void doTestExactMatch() throws Exception
     {
-        final IndexComponents components = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
 
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(components, false))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(versionedIndex, false))
         {
             writer.add(asByteComparable("ab"), 0);
             writer.add(asByteComparable("abb"), 1);
@@ -60,7 +62,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
             fp = writer.complete(new MutableLong());
         }
 
-        try (FileHandle input = components.createFileHandle(components.termsData);
+        try (FileHandle input = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
              TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(input.instantiateRebufferer(), fp))
         {
             assertEquals(TrieTermsDictionaryReader.NOT_FOUND, reader.exactMatch(asByteComparable("a")));
@@ -75,11 +77,11 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
     @Test
     public void testTermEnum() throws IOException
     {
-        final IndexComponents components = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(components, false))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(versionedIndex, false))
         {
             for (int i = 0; i < byteComparables.size(); ++i)
             {
@@ -88,7 +90,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
             fp = writer.complete(new MutableLong());
         }
 
-        try (FileHandle input = components.createFileHandle(components.termsData);
+        try (FileHandle input = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
              TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(input.instantiateRebufferer(), fp))
         {
             final Iterator<Pair<ByteComparable, Long>> iterator = reader.iterator();
@@ -109,11 +111,11 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
     @Test
     public void testMinMaxTerm() throws IOException
     {
-        final IndexComponents components = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(components, false))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(versionedIndex, false))
         {
             for (int i = 0; i < byteComparables.size(); ++i)
             {
@@ -122,7 +124,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
             fp = writer.complete(new MutableLong());
         }
 
-        try (FileHandle input = components.createFileHandle(components.termsData);
+        try (FileHandle input = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
              TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(input.instantiateRebufferer(), fp))
         {
             final ByteComparable expectedMaxTerm = byteComparables.get(byteComparables.size() - 1);

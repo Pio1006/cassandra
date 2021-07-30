@@ -28,7 +28,9 @@ import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
@@ -62,22 +64,22 @@ public class TermsReaderTest extends NdiRandomizedTest
     private void doTestTermsIteration() throws IOException
     {
         final int terms = 70, postings = 2;
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final List<Pair<ByteComparable, IntArrayList>> termsEnum = buildTermsEnum(terms, postings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexComponents, false))
+        try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, false))
         {
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = indexComponents.createFileHandle(indexComponents.termsData);
-        FileHandle postingLists = indexComponents.createFileHandle(indexComponents.postingLists);
+        FileHandle termsData = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
+        FileHandle postingLists = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.POSTING_LISTS);
 
-        long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponents.NDIType.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
+        long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 
-        try (TermsReader reader = new TermsReader(indexComponents, termsData, postingLists,
-                                                  indexMetas.get(indexComponents.termsData.ndiType).root, termsFooterPointer))
+        try (TermsReader reader = new TermsReader(termsData, postingLists,
+                                                  indexMetas.get(IndexComponent.Type.TERMS_DATA).root, termsFooterPointer))
         {
             try (TermsIterator actualTermsEnum = reader.allTerms(0, NO_OP_TRIE_LISTENER))
             {
@@ -93,22 +95,22 @@ public class TermsReaderTest extends NdiRandomizedTest
 
     private void testTermQueries(int numTerms, int numPostings) throws IOException
     {
-        final IndexComponents indexComponents = newIndexComponents();
+        final VersionedIndex versionedIndex = newVersionedIndex();
         final List<Pair<ByteComparable, IntArrayList>> termsEnum = buildTermsEnum(numTerms, numPostings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexComponents, false))
+        try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, false))
         {
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = indexComponents.createFileHandle(indexComponents.termsData);
-        FileHandle postingLists = indexComponents.createFileHandle(indexComponents.postingLists);
+        FileHandle termsData = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
+        FileHandle postingLists = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.POSTING_LISTS);
 
-        long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponents.NDIType.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
+        long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 
-        try (TermsReader reader = new TermsReader(indexComponents, termsData, postingLists,
-                                                  indexMetas.get(indexComponents.termsData.ndiType).root, termsFooterPointer))
+        try (TermsReader reader = new TermsReader(termsData, postingLists,
+                                                  indexMetas.get(IndexComponent.Type.TERMS_DATA).root, termsFooterPointer))
         {
             for (Pair<ByteComparable, IntArrayList> pair : termsEnum)
             {

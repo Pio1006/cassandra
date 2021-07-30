@@ -85,7 +85,7 @@ public class IndexViewManager
     public Set<SSTableContext> update(Collection<SSTableReader> oldSSTables, Collection<SSTableContext> newSSTableContexts, boolean validate, boolean rename)
     {
         // Valid indexes on the left and invalid SSTable contexts on the right...
-        Pair<Set<SSTableIndex>, Set<SSTableContext>> indexes = context.getBuiltIndexes(newSSTableContexts, validate, rename);
+        Pair<Set<SSTableIndex>, Set<SSTableContext>> indexes = context.getBuiltIndexes(newSSTableContexts, validate);
 
         View currentView, newView;
         Collection<SSTableIndex> newViewIndexes = new HashSet<>();

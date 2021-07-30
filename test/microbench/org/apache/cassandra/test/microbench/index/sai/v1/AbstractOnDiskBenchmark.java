@@ -26,13 +26,15 @@ import java.util.stream.IntStream;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.sai.disk.SSTableComponentsWriter;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.PostingsReader;
 import org.apache.cassandra.index.sai.disk.v1.PostingsWriter;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.ArrayPostingList;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileHandle;
@@ -48,10 +50,10 @@ public abstract class AbstractOnDiskBenchmark
 
     private Descriptor descriptor;
 
-    IndexComponents groupComponents;
+    VersionedIndex groupComponents;
     private FileHandle token;
 
-    private IndexComponents indexComponents;
+    private VersionedIndex indexComponents;
     private FileHandle postings;
     private long summaryPosition;
 
@@ -97,16 +99,16 @@ public abstract class AbstractOnDiskBenchmark
         assert ChunkCache.instance != null;
 
         descriptor = new Descriptor(Files.createTempDirectory("jmh").toFile(), "ks", this.getClass().getSimpleName(), 1);
-        groupComponents = IndexComponents.perSSTable(descriptor, null);
-        indexComponents = IndexComponents.create("col", descriptor, null);
+        groupComponents = VersionedIndex.create(descriptor);
+        indexComponents = VersionedIndex.create(descriptor, "col");
 
         // write per-sstable components: token and offset
         writeSSTableComponents(numRows());
-        token = groupComponents.createFileHandle(IndexComponents.TOKEN_VALUES);
+        token = IndexFileUtils.instance.createFileHandle(groupComponents, IndexComponent.Type.TOKEN_VALUES);
 
         // write postings
         summaryPosition = writePostings(numPostings());
-        postings = indexComponents.createFileHandle(indexComponents.postingLists);
+        postings = IndexFileUtils.instance.createFileHandle(indexComponents, IndexComponent.Type.POSTING_LISTS);
     }
 
     @TearDown(Level.Trial)
@@ -145,8 +147,8 @@ public abstract class AbstractOnDiskBenchmark
 
     protected final PostingsReader openPostingsReader() throws IOException
     {
-        IndexInput input = indexComponents.openInput(postings);
-        IndexInput summaryInput = indexComponents.openInput(postings);
+        IndexInput input = IndexFileUtils.instance.openInput(postings);
+        IndexInput summaryInput = IndexFileUtils.instance.openInput(postings);
 
         PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(summaryInput, summaryPosition);
         return new PostingsReader(input, summary, QueryEventListener.PostingListEventListener.NO_OP);
@@ -163,7 +165,7 @@ public abstract class AbstractOnDiskBenchmark
 
     protected final LongArray openRowIdToTokenReader() throws IOException
     {
-        MetadataSource source = MetadataSource.loadGroupMetadata(groupComponents);
-        return new BlockPackedReader(token, IndexComponents.TOKEN_VALUES, groupComponents, source).open();
+        MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(groupComponents, IndexComponent.Type.GROUP_META));
+        return new BlockPackedReader(token, IndexComponent.TOKEN_VALUES, source).open();
     }
 }

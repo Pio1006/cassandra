@@ -28,7 +28,8 @@ import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -42,10 +43,10 @@ public class InvertedIndexWriter implements Closeable
     private final PostingsWriter postingsWriter;
     private long postingsAdded;
 
-    public InvertedIndexWriter(IndexComponents indexComponents, boolean segmented) throws IOException
+    public InvertedIndexWriter(VersionedIndex versionedIndex, boolean segmented) throws IOException
     {
-        this.termsDictionaryWriter = new TrieTermsDictionaryWriter(indexComponents, segmented);
-        this.postingsWriter = new PostingsWriter(indexComponents, segmented);
+        this.termsDictionaryWriter = new TrieTermsDictionaryWriter(versionedIndex, segmented);
+        this.postingsWriter = new PostingsWriter(versionedIndex, segmented);
     }
 
     /**
@@ -86,8 +87,8 @@ public class InvertedIndexWriter implements Closeable
         map.put(SAICodecUtils.FOOTER_POINTER, "" + footerPointer.getValue());
 
         // Postings list file pointers are stored directly in TERMS_DATA, so a root is not needed.
-        components.put(IndexComponents.NDIType.POSTING_LISTS, -1, postingsOffset, postingsLength);
-        components.put(IndexComponents.NDIType.TERMS_DATA, termsRoot, termsOffset, termsLength, map);
+        components.put(IndexComponent.Type.POSTING_LISTS, -1, postingsOffset, postingsLength);
+        components.put(IndexComponent.Type.TERMS_DATA, termsRoot, termsOffset, termsLength, map);
 
         return components;
     }

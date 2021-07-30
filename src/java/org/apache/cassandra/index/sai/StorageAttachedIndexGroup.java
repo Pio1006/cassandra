@@ -45,7 +45,8 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.TableStateMetrics;
@@ -123,7 +124,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
          */
         if (indices.isEmpty())
         {
-            Set<Component> toRemove = new HashSet<>(IndexComponents.PER_SSTABLE_COMPONENTS);
+            Set<Component> toRemove = new HashSet<>(IndexComponent.PER_SSTABLE);
             for (SSTableReader sstable : contextManager.sstables())
                 sstable.unregisterComponents(toRemove, baseCfs.getTracker());
 
@@ -233,7 +234,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
 
     static Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
     {
-        Set<Component> components = new HashSet<>(IndexComponents.PER_SSTABLE_COMPONENTS);
+        Set<Component> components = new HashSet<>(IndexComponent.PER_SSTABLE);
         indices.forEach(index -> components.addAll(index.getComponents()));
         return components;
     }
@@ -281,7 +282,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     void deletePerSSTableFiles(Collection<SSTableReader> sstables)
     {
         contextManager.release(sstables);
-        sstables.forEach(sstableReader -> IndexComponents.deletePerSSTableIndexComponents(sstableReader.descriptor));
+        sstables.forEach(sstableReader -> VersionedIndex.create(sstableReader.descriptor).deletePerSSTableIndexComponents());
     }
 
     void dropIndexSSTables(Collection<SSTableReader> ss, StorageAttachedIndex index)
@@ -313,7 +314,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         if (!results.right.isEmpty())
         {
             results.right.forEach(sstable -> {
-                IndexComponents.deletePerSSTableIndexComponents(sstable.descriptor);
+                VersionedIndex.create(sstable.descriptor).deletePerSSTableIndexComponents();
                 // Column indexes are invalid if their SSTable-level components are corrupted so delete
                 // their associated index files and mark them non-queryable.
                 indices.forEach(index -> {

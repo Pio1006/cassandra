@@ -29,7 +29,9 @@ import com.google.common.base.MoreObjects;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.MutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.lucene.codecs.MutablePointValues;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
@@ -37,7 +39,6 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 
 import static com.google.common.base.Preconditions.checkArgument;
-
 
 /**
  * Specialized writer for 1-dim point values, that builds them into a BKD tree with auxiliary posting lists on eligible
@@ -49,8 +50,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class NumericIndexWriter implements Closeable
 {
     public static final int MAX_POINTS_IN_LEAF_NODE = BKDWriter.DEFAULT_MAX_POINTS_IN_LEAF_NODE;
+
+    private final VersionedIndex versionedIndex;
     private final BKDWriter writer;
-    private final IndexComponents indexComponents;
     private final int bytesPerDim;
     private final boolean segmented;
 
@@ -60,12 +62,12 @@ public class NumericIndexWriter implements Closeable
      * @param maxSegmentRowId maximum possible segment row ID, used to create `maxDoc` for kd-tree
      * @param numRows must be greater than number of added rowIds, only used for validation.
      */
-    public NumericIndexWriter(IndexComponents indexComponents, int bytesPerDim, long maxSegmentRowId, long numRows, IndexWriterConfig config, boolean segmented) throws IOException
+    public NumericIndexWriter(VersionedIndex versionedIndex, int bytesPerDim, long maxSegmentRowId, long numRows, IndexWriterConfig config, boolean segmented) throws IOException
     {
-        this(indexComponents, MAX_POINTS_IN_LEAF_NODE, bytesPerDim, maxSegmentRowId, numRows, config, segmented);
+        this(versionedIndex, MAX_POINTS_IN_LEAF_NODE, bytesPerDim, maxSegmentRowId, numRows, config, segmented);
     }
 
-    public NumericIndexWriter(IndexComponents indexComponents, int maxPointsInLeafNode, int bytesPerDim, long maxSegmentRowId, long numRows, IndexWriterConfig config, boolean segmented) throws IOException
+    public NumericIndexWriter(VersionedIndex versionedIndex, int maxPointsInLeafNode, int bytesPerDim, long maxSegmentRowId, long numRows, IndexWriterConfig config, boolean segmented) throws IOException
     {
         checkArgument(maxSegmentRowId >= 0,
                       "[%s] maxRowId must be non-negative value, but got %s",
@@ -75,7 +77,7 @@ public class NumericIndexWriter implements Closeable
                       "[$s] numRows must be non-negative value, but got %s",
                       config.getIndexName(), numRows);
 
-        this.indexComponents = indexComponents;
+        this.versionedIndex = versionedIndex;
         this.bytesPerDim = bytesPerDim;
         this.config = config;
         this.writer = new BKDWriter(maxSegmentRowId + 1,
@@ -139,7 +141,7 @@ public class NumericIndexWriter implements Closeable
 
         final LeafCallback leafCallback = new LeafCallback();
 
-        try (IndexOutput bkdOutput = indexComponents.createOutput(indexComponents.kdTree, true, segmented))
+        try (IndexOutput bkdOutput = IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.KD_TREE, true, segmented))
         {
             // The SSTable kd-tree component file is opened in append mode, so our offset is the current file pointer.
             final long bkdOffset = bkdOutput.getFilePointer();
@@ -160,15 +162,15 @@ public class NumericIndexWriter implements Closeable
             attributes.put("bytes_per_dim", Long.toString(writer.bytesPerDim));
             attributes.put("num_dims", Long.toString(writer.numDims));
 
-            components.put(IndexComponents.NDIType.KD_TREE, bkdPosition, bkdOffset, bkdLength, attributes);
+            components.put(IndexComponent.Type.KD_TREE, bkdPosition, bkdOffset, bkdLength, attributes);
         }
 
-        try (TraversingBKDReader reader = new TraversingBKDReader(indexComponents, indexComponents.createFileHandle(indexComponents.kdTree, segmented), bkdPosition);
-             IndexOutput postingsOutput = indexComponents.createOutput(indexComponents.kdTreePostingLists, true, segmented))
+        try (TraversingBKDReader reader = new TraversingBKDReader(IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE, segmented), bkdPosition);
+             IndexOutput postingsOutput = IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.KD_TREE_POSTING_LISTS, true, segmented))
         {
             final long postingsOffset = postingsOutput.getFilePointer();
 
-            final OneDimBKDPostingsWriter postingsWriter = new OneDimBKDPostingsWriter(leafCallback.postings, config, indexComponents);
+            final OneDimBKDPostingsWriter postingsWriter = new OneDimBKDPostingsWriter(leafCallback.postings, config, versionedIndex);
             reader.traverse(postingsWriter);
 
             // The kd-tree postings writer already writes its own header & footer.
@@ -179,7 +181,7 @@ public class NumericIndexWriter implements Closeable
             attributes.put("num_non_leaf_postings", Integer.toString(postingsWriter.numNonLeafPostings));
 
             long postingsLength = postingsOutput.getFilePointer() - postingsOffset;
-            components.put(IndexComponents.NDIType.KD_TREE_POSTING_LISTS, postingsPosition, postingsOffset, postingsLength, attributes);
+            components.put(IndexComponent.Type.KD_TREE_POSTING_LISTS, postingsPosition, postingsOffset, postingsLength, attributes);
         }
 
         return components;

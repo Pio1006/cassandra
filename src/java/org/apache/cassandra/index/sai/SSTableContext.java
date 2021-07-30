@@ -24,10 +24,13 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.MonotonicBlockPackedReader;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -50,7 +53,8 @@ public class SSTableContext extends SharedCloseableImpl
 {
     public final SSTableReader sstable;
 
-    private final IndexComponents groupComponents;
+    private final VersionedIndex versionedIndex;
+
     // mapping from sstable row id to token or offset
     public final LongArray.Factory tokenReaderFactory, offsetReaderFactory;
     public final KeyFetcher keyFetcher;
@@ -60,14 +64,14 @@ public class SSTableContext extends SharedCloseableImpl
                            LongArray.Factory offsetReaderFactory,
                            KeyFetcher keyFetcher,
                            Cleanup cleanup,
-                           IndexComponents groupComponents)
+                           VersionedIndex versionedIndex)
     {
         super(cleanup);
         this.sstable = sstable;
         this.tokenReaderFactory = tokenReaderFactory;
         this.offsetReaderFactory = offsetReaderFactory;
         this.keyFetcher = keyFetcher;
-        this.groupComponents = groupComponents;
+        this.versionedIndex = versionedIndex;
     }
 
     private SSTableContext(SSTableContext copy)
@@ -76,14 +80,14 @@ public class SSTableContext extends SharedCloseableImpl
         this.sstable = copy.sstable;
         this.tokenReaderFactory = copy.tokenReaderFactory;
         this.offsetReaderFactory = copy.offsetReaderFactory;
-        this.groupComponents = copy.groupComponents;
+        this.versionedIndex = copy.versionedIndex;
         this.keyFetcher = copy.keyFetcher;
     }
 
     @SuppressWarnings("resource")
     public static SSTableContext create(SSTableReader sstable)
     {
-        IndexComponents groupComponents = IndexComponents.perSSTable(sstable);
+        VersionedIndex versionedIndex = new VersionedIndex(IndexDescriptor.forSSTable(sstable.descriptor));
 
         Ref<? extends SSTableReader> sstableRef = null;
         FileHandle token = null, offset = null;
@@ -91,7 +95,7 @@ public class SSTableContext extends SharedCloseableImpl
         KeyFetcher keyFetcher;
         try
         {
-            MetadataSource source = MetadataSource.loadGroupMetadata(groupComponents);
+            MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.GROUP_META));
 
             sstableRef = sstable.tryRef();
 
@@ -100,16 +104,16 @@ public class SSTableContext extends SharedCloseableImpl
                 throw new IllegalStateException("Couldn't acquire reference to the sstable: " + sstable);
             }
 
-            token = groupComponents.createFileHandle(IndexComponents.TOKEN_VALUES);
-            offset  = groupComponents.createFileHandle(IndexComponents.OFFSETS_VALUES);
+            token = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TOKEN_VALUES);
+            offset  = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.OFFSETS_VALUES);
 
-            tokenReaderFactory = new BlockPackedReader(token, IndexComponents.TOKEN_VALUES, groupComponents, source);
-            offsetReaderFactory = new MonotonicBlockPackedReader(offset, IndexComponents.OFFSETS_VALUES, groupComponents, source);
+            tokenReaderFactory = new BlockPackedReader(token, IndexComponent.TOKEN_VALUES, source);
+            offsetReaderFactory = new MonotonicBlockPackedReader(offset, IndexComponent.OFFSETS_VALUES, source);
             keyFetcher = new DecoratedKeyFetcher(sstable);
 
             Cleanup cleanup = new Cleanup(token, offset, sstableRef);
 
-            return new SSTableContext(sstable, tokenReaderFactory, offsetReaderFactory, keyFetcher, cleanup, groupComponents);
+            return new SSTableContext(sstable, tokenReaderFactory, offsetReaderFactory, keyFetcher, cleanup, versionedIndex);
         }
         catch (Throwable t)
         {
@@ -165,6 +169,27 @@ public class SSTableContext extends SharedCloseableImpl
         }
     }
 
+    public IndexDescriptor indexDescriptor()
+    {
+        return versionedIndex.indexDescriptor();
+    }
+
+    public boolean isColumnIndexComplete(String indexName)
+    {
+        return versionedIndex.withIndex(indexName).fileFor(IndexComponent.Type.COLUMN_COMPLETION_MARKER).exists();
+    }
+
+    public boolean isColumnIndexEmpty(String indexName)
+    {
+        //TODO Complete this
+        return false;
+    }
+
+    public void deleteColumnIndex(String indexName)
+    {
+
+    }
+
     /**
      * @return descriptor of attached sstable
      */
@@ -183,7 +208,8 @@ public class SSTableContext extends SharedCloseableImpl
      */
     public long diskUsage()
     {
-        return groupComponents.sizeOfPerSSTableComponents();
+        //TODO This will be done in a version sub-class
+        return 0;
     }
 
     @Override

@@ -92,7 +92,8 @@ import org.apache.cassandra.index.sai.disk.MemtableIndexWriter;
 import org.apache.cassandra.index.sai.disk.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -173,7 +174,11 @@ public class StorageAttachedIndex implements Index
                                 if (!isFullRebuild)
                                 {
                                     ss = sstablesToRebuild.stream()
-                                                          .filter(s -> !IndexComponents.isColumnIndexComplete(s.descriptor, context.getIndexName()))
+                                                          .filter(s -> {
+                                                              IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(s.descriptor);
+                                                              return !indexDescriptor.fileFor(IndexComponent.create(IndexComponent.Type.COLUMN_COMPLETION_MARKER,
+                                                                                                                    context.getIndexName())).exists();
+                                                          })
                                                           .collect(Collectors.toList());
                                 }
 
@@ -573,12 +578,14 @@ public class StorageAttachedIndex implements Index
             // An SSTable is considered not indexed if:
             //   1. The current view does not contain the SSTable
             //   2. The SSTable is not marked compacted
+
             //   3. The column index does not have a completion marker
-            if (!view.containsSSTable(sstable) && !sstable.isMarkedCompacted() &&
-                    !IndexComponents.isColumnIndexComplete(sstable.descriptor, context.getIndexName()))
-            {
-                nonIndexed.add(sstable);
-            }
+            //TODO Fix
+//            if (!view.containsSSTable(sstable) && !sstable.isMarkedCompacted() &&
+//                    !IndexComponents.isColumnIndexComplete(sstable.descriptor, context.getIndexName()))
+//            {
+//                nonIndexed.add(sstable);
+//            }
         }
 
         return nonIndexed;
@@ -672,7 +679,9 @@ public class StorageAttachedIndex implements Index
     @Override
     public Set<Component> getComponents()
     {
-        return new HashSet<>(IndexComponents.perColumnComponents(context.getIndexName(), context.isLiteral()));
+        //TODO Fix
+//        return new HashSet<>(IndexComponents.perColumnComponents(context.getIndexName(), context.isLiteral()));
+        return new HashSet<>();
     }
 
     @Override
@@ -723,6 +732,7 @@ public class StorageAttachedIndex implements Index
 
     void deleteIndexFiles(SSTableReader sstable)
     {
-        IndexComponents.create(context.getIndexName(), sstable).deleteColumnIndex();
+        //TODO Fix
+//        IndexComponents.create(context.getIndexName(), sstable).deleteColumnIndex();
     }
 }

@@ -23,7 +23,6 @@ import java.util.Map;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayIndexInput;
@@ -42,17 +41,17 @@ public class MetadataSource
         this.components = components;
     }
 
-    public static MetadataSource loadGroupMetadata(IndexComponents components) throws IOException
-    {
-        return MetadataSource.load(components.openBlockingInput(IndexComponents.GROUP_META));
-    }
+//    public static MetadataSource loadGroupMetadata(IndexDescriptor indexDescriptor) throws IOException
+//    {
+//        return MetadataSource.load(FileUtils.openBlockingInput(indexDescriptor, IndexComponent.GROUP_META));
+//    }
 
-    public static MetadataSource loadColumnMetadata(IndexComponents components) throws IOException
-    {
-        return MetadataSource.load(components.openBlockingInput(components.meta));
-    }
+//    public static MetadataSource loadColumnMetadata(IndexComponents components) throws IOException
+//    {
+//        return MetadataSource.load(IndexFileUtils.openBlockingInput(components.meta));
+//    }
 
-    private static MetadataSource load(IndexInput indexInput) throws IOException
+    public static MetadataSource load(IndexInput indexInput) throws IOException
     {
         Map<String, BytesRef> components = new HashMap<>();
         Version version;

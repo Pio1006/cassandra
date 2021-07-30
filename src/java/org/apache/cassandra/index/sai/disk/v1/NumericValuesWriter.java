@@ -20,7 +20,9 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.Closeable;
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.lucene.store.IndexOutput;
@@ -38,7 +40,7 @@ public class NumericValuesWriter implements Closeable
     private final int blockSize;
     private long count = 0;
 
-    public NumericValuesWriter(IndexComponents.IndexComponent component,
+    public NumericValuesWriter(IndexComponent component,
                                IndexOutput indexOutput,
                                MetadataWriter metadataWriter,
                                boolean monotonic) throws IOException
@@ -46,13 +48,13 @@ public class NumericValuesWriter implements Closeable
         this(component, indexOutput, metadataWriter, monotonic, monotonic ? MONOTONIC_BLOCK_SIZE : BLOCK_SIZE);
     }
 
-    NumericValuesWriter(IndexComponents.IndexComponent component,
-                        IndexComponents indexComponents,
+    NumericValuesWriter(VersionedIndex versionedIndex,
+                        IndexComponent component,
                         MetadataWriter metadataWriter,
                         boolean monotonic,
                         int blockSize) throws IOException
     {
-        this(component, indexComponents.createOutput(component), metadataWriter, monotonic, blockSize);
+        this(component, IndexFileUtils.instance.createOutput(versionedIndex, component.type), metadataWriter, monotonic, blockSize);
     }
 
     private NumericValuesWriter(Component component,
@@ -72,6 +74,7 @@ public class NumericValuesWriter implements Closeable
     @Override
     public void close() throws IOException
     {
+        //TODO Check this is correct - should we be using name here?
         try (IndexOutput o = metadataWriter.builder(component.name))
         {
             final long fp = writer.finish();

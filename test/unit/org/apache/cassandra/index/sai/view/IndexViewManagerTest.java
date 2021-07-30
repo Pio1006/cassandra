@@ -42,8 +42,6 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -222,7 +220,7 @@ public class IndexViewManagerTest extends SAITester
 
         MockSSTableIndex(SSTableContext group, ColumnContext context) throws IOException
         {
-            super(group, context, IndexComponents.create(context.getIndexName(), group.descriptor(), CryptoUtils.getCompressionParams(group.sstable())));
+            super(group, context);
         }
 
         @Override

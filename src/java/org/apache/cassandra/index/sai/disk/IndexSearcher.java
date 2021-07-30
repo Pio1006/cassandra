@@ -26,13 +26,12 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.SSTableContext;
-import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.LongArray;
+import org.apache.cassandra.index.sai.utils.PerIndexFiles;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 
@@ -47,15 +46,12 @@ public abstract class IndexSearcher implements Closeable
     private final LongArray.Factory rowIdToTokenFactory;
     private final LongArray.Factory rowIdToOffsetFactory;
     private final SSTableContext.KeyFetcher keyFetcher;
-    final SSTableIndex.PerIndexFiles indexFiles;
+    final PerIndexFiles indexFiles;
 
     final SegmentMetadata metadata;
 
-    final IndexComponents indexComponents;
-
     IndexSearcher(Segment segment)
     {
-        this.indexComponents = segment.indexFiles.components();
         this.rowIdToTokenFactory = segment.segmentRowIdToTokenFactory;
         this.rowIdToOffsetFactory = segment.segmentRowIdToOffsetFactory;
         this.keyFetcher = segment.keyFetcher;
@@ -114,7 +110,7 @@ public abstract class IndexSearcher implements Closeable
         if (searcherContext.noOverlap)
             return RangeIterator.empty();
 
-        RangeIterator iterator = new PostingListRangeIterator(searcherContext, keyFetcher, indexComponents);
+        RangeIterator iterator = new PostingListRangeIterator(searcherContext, keyFetcher);
 
         return iterator;
     }

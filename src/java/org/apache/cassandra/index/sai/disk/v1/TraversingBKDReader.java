@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.Closeable;
 
 import org.agrona.collections.IntArrayList;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
@@ -41,7 +40,6 @@ import org.apache.lucene.util.MathUtil;
  */
 public class TraversingBKDReader implements Closeable
 {
-    final IndexComponents indexComponents;
     final FileHandle indexFile;
     final int bytesPerDim;
     final int numLeaves;
@@ -56,9 +54,8 @@ public class TraversingBKDReader implements Closeable
     final int packedBytesLength;
 
     @SuppressWarnings("resource")
-    TraversingBKDReader(IndexComponents indexComponents, FileHandle indexFile, long root)
+    TraversingBKDReader(FileHandle indexFile, long root)
     {
-        this.indexComponents = indexComponents;
         this.indexFile = indexFile;
 
         try (final RandomAccessReader reader = indexFile.createReader())

@@ -24,8 +24,8 @@ import java.util.Map;
 import java.util.Set;
 
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
-import org.apache.cassandra.index.sai.disk.io.TrackingIndexComponents;
+import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.io.TrackingIndexFileUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
@@ -33,24 +33,23 @@ import org.apache.lucene.store.IndexInput;
 
 import static org.junit.Assert.assertTrue;
 
-public class IndexComponentsLeakDetector extends TestRuleAdapter
+public class IndexInputLeakDetector extends TestRuleAdapter
 {
-    private final static Set<TrackingIndexComponents> trackedIndexComponents = Collections.synchronizedSet(new HashSet<>());
+    private final static Set<TrackingIndexFileUtils> trackedIndexFileUtils = Collections.synchronizedSet(new HashSet<>());
 
-    public IndexComponents newIndexComponents(String column, Descriptor descriptor, SequentialWriterOption sequentialWriterOption,
-                                              CompressionParams params)
+    public VersionedIndex newVersionedIndex(Descriptor descriptor, String index, SequentialWriterOption sequentialWriterOption)
     {
-        final TrackingIndexComponents components = new TrackingIndexComponents(column, descriptor, sequentialWriterOption, params);
-        trackedIndexComponents.add(components);
-        return components;
+        TrackingIndexFileUtils trackingIndexFileUtils = new TrackingIndexFileUtils(sequentialWriterOption);
+        trackedIndexFileUtils.add(trackingIndexFileUtils);
+        return VersionedIndex.create(descriptor, index);
     }
 
     @Override
     protected void afterIfSuccessful()
     {
-        for (TrackingIndexComponents components : trackedIndexComponents)
+        for (TrackingIndexFileUtils fileUtils : trackedIndexFileUtils)
         {
-            final Map<IndexInput, String> openInputs = components.getOpenInputs();
+            final Map<IndexInput, String> openInputs = fileUtils.getOpenInputs();
             assertTrue("Index components have open inputs: " + openInputs, openInputs.isEmpty());
         }
     }
@@ -58,6 +57,7 @@ public class IndexComponentsLeakDetector extends TestRuleAdapter
     @Override
     protected void afterAlways(List<Throwable> errors)
     {
-        trackedIndexComponents.clear();
+        trackedIndexFileUtils.clear();
+        TrackingIndexFileUtils.reset();
     }
 }
