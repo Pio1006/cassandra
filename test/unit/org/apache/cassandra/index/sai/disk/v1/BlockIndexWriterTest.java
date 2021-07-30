@@ -152,16 +152,15 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
     public void testSameTerms() throws Exception
     {
         List<Pair<ByteComparable, IntArrayList>> list = new ArrayList();
-        list.add(add("aaa", new int[] {100, 101})); // 0
+        list.add(add("aaa", new int[] {100})); // 0
         list.add(add("aaabbb", new int[] {0, 1})); // 0
         list.add(add("aaabbb", new int[] {2, 3, 4})); // 1
         list.add(add("cccc", new int[] {10, 11})); // 2
         list.add(add("cccc", new int[] {15})); // 3
         list.add(add("gggaaaddd", new int[] {200, 201, 203})); // 3, 4
-        list.add(add("gggzzzz", new int[] {500, 501, 502, 503, 504})); // 5, 6
+        list.add(add("gggzzzz", new int[] {500, 501, 502, 503, 504, 505})); // 5, 6
         list.add(add("qqqqqaaaaa", new int[] {400, 405, 409})); // 3, 4
-
-//        list.add(add("zzzzz", new int[] {13, 14, 15})); // 6, 7
+        list.add(add("zzzzz", new int[] {700, 780, 782, 790, 794, 799})); // 6, 7
 //        list.add(add("zzzzz", new int[] {16, 17, 18})); // 8, 9
 //        list.add(add("zzzzzzzzzz", new int[] {20, 21, 24, 29, 30})); // 8, 9
 
@@ -211,8 +210,8 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
                                                            postingsInput,
                                                            meta);
 
-            PostingList postings = reader.traverse(ByteComparable.fixedLength("cccc".getBytes(StandardCharsets.UTF_8)),
-                                                   ByteComparable.fixedLength("gggzzzz".getBytes(StandardCharsets.UTF_8)));
+            PostingList postings = reader.traverse(ByteComparable.fixedLength("gggaaaddd".getBytes(StandardCharsets.UTF_8)),
+                                                   ByteComparable.fixedLength("zzzzz".getBytes(StandardCharsets.UTF_8)));
             while (true)
             {
                 final long rowID = postings.nextPosting();

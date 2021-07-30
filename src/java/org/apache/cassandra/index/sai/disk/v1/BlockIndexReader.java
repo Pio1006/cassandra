@@ -383,7 +383,7 @@ public class BlockIndexReader
             orderMapFP = null;
         }
         final long postingsFP = nodeIDToPostingsFP.get(nodeID);
-        System.out.println("nodeID=" + nodeID + " postingsFP=" + postingsFP + " startIdx=" + startIdx);
+        System.out.println("leaf="+leaf+" nodeID=" + nodeID + " postingsFP=" + postingsFP + " startIdx=" + startIdx+" orderMapFP="+orderMapFP);
         PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsInput, postingsFP);
         PostingsReader postings = new PostingsReader(postingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
         final int startIdxFinal = startIdx;
@@ -396,6 +396,7 @@ public class BlockIndexReader
             {
                 ord = (int) this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd);
             }
+            System.out.println("postingsOrd="+postingsOrd+" ord="+ord+" startIdxFinal="+startIdxFinal+" rowID="+rowID);
             return ord >= startIdxFinal;
         },
         postings);
