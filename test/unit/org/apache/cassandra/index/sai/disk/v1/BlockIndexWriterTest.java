@@ -134,8 +134,11 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
     public void testRanges() throws Exception
     {
         TreeRangeSet<Integer> set = TreeRangeSet.create();
-        set.add(Range.open(0, 10));
+        set.add(Range.closed(0, 10));
         set.add(Range.open(50, 60));
+
+        boolean contains = set.contains(10);
+        System.out.println("contains="+contains);
 
         boolean encloses = set.encloses(Range.open(0, 10));
         System.out.println("encloses="+encloses);
@@ -149,12 +152,16 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
     public void testSameTerms() throws Exception
     {
         List<Pair<ByteComparable, IntArrayList>> list = new ArrayList();
+        //list.add(add("aaa", new int[] {5, 6})); // 0
         list.add(add("aaabbb", new int[] {0, 1})); // 0
         list.add(add("aaabbb", new int[] {2, 3})); // 1
         list.add(add("cccc", new int[] {4, 5})); // 2
         list.add(add("cccc", new int[] {6})); // 3
-        list.add(add("zzzzz", new int[] {10, 11, 12})); // 3, 4
-        list.add(add("zzzzz", new int[] {13, 14})); // 4, 5
+        list.add(add("gggaaaddd", new int[] {7, 8, 9})); // 3, 4
+        list.add(add("gggzzzz", new int[] {10, 11, 12})); // 5, 6
+        list.add(add("zzzzz", new int[] {13, 14, 15})); // 6, 7
+        list.add(add("zzzzz", new int[] {16, 17, 18})); // 8, 9
+        list.add(add("zzzzzzzzzz", new int[] {20, 21})); // 8, 9
 
         ByteBuffersDirectory dir = new ByteBuffersDirectory();
         IndexOutput out = dir.createOutput("file", IOContext.DEFAULT);
@@ -202,47 +209,56 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
                                                            postingsInput,
                                                            meta);
 
-            SortedSet<Integer> nodeIDs2 = reader.traverseForNodeIDs(ByteComparable.fixedLength("zzzzz".getBytes(StandardCharsets.UTF_8)),
-                                                                    null);
-            System.out.println("nodeIDs2=" + nodeIDs2);
+//            SortedSet<Integer> nodeIDs2 = reader.traverseForNodeIDs(ByteComparable.fixedLength("zzzzz".getBytes(StandardCharsets.UTF_8)),
+//                                                                    null);
+//            System.out.println("nodeIDs2=" + nodeIDs2);
+//
+////            Set<Integer> nodeIDs = reader.traverseIndex(3, 4);
+////            System.out.println("nodeIDs=" + nodeIDs);
+//
+//            List<Pair<Integer,Integer>> nodeIDToLeafOrd = new ArrayList<>();
+//
+//            for (int nodeID : nodeIDs2)
+//            {
+//                long leafOrdinal = reader.nodeIDToLeaf.get(nodeID);
+//                Long postingsFP = null;
+//                if (meta.nodeIDPostingsFP.containsKey(nodeID))
+//                {
+//                    postingsFP = meta.nodeIDPostingsFP.get(nodeID);
+//                }
+//
+//                if (postingsFP != null)
+//                    nodeIDToLeafOrd.add(Pair.create(nodeID, (int) leafOrdinal));
+//
+//                System.out.println("nodeID=" + nodeID + " leafOrdinal=" + leafOrdinal + " postingsFP=" + postingsFP);
+//            }
+//
+//            Collections.sort(nodeIDToLeafOrd, (o1, o2) -> Integer.compare(o1.right, o2.right));
+//            //int minNodeID = nodeIDToLeafOrd.get(0).left;
+//            int maxNodeID = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).left;
+//
+//            int minNodeID = nodeIDToLeafOrd.get(0).left;
 
-//            Set<Integer> nodeIDs = reader.traverseIndex(3, 4);
-//            System.out.println("nodeIDs=" + nodeIDs);
-
-            List<Pair<Integer,Integer>> nodeIDToLeafOrd = new ArrayList<>();
-
-            for (int nodeID : nodeIDs2)
-            {
-                long leafOrdinal = reader.nodeIDToLeaf.get(nodeID);
-                Long postingsFP = null;
-                if (meta.nodeIDPostingsFP.containsKey(nodeID))
-                {
-                    postingsFP = meta.nodeIDPostingsFP.get(nodeID);
-                }
-
-                if (postingsFP != null)
-                    nodeIDToLeafOrd.add(Pair.create(nodeID, (int) leafOrdinal));
-
-                System.out.println("nodeID=" + nodeID + " leafOrdinal=" + leafOrdinal + " postingsFP=" + postingsFP);
-            }
-
-            Collections.sort(nodeIDToLeafOrd, (o1, o2) -> Integer.compare(o1.right, o2.right));
-            //int minNodeID = nodeIDToLeafOrd.get(0).left;
-            int maxNodeID = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).left;
-
-            int minNodeID = nodeIDToLeafOrd.get(0).left;
-
-            // maxNodeID,
-            PostingList leafPostings = reader.filterFirstLeaf(minNodeID,
-                                                              new BytesRef("zzzzz"),
-                                                              false);
-
+            PostingList postings = reader.traverse(ByteComparable.fixedLength("gggaaaddd".getBytes(StandardCharsets.UTF_8)),
+                                                   ByteComparable.fixedLength("gggzzzz".getBytes(StandardCharsets.UTF_8)));
             while (true)
             {
-                final long rowID = leafPostings.nextPosting();
+                final long rowID = postings.nextPosting();
                 if (rowID == PostingList.END_OF_STREAM) break;
                 System.out.println("rowid="+rowID);
             }
+
+            // maxNodeID,
+//            PostingList leafPostings = reader.filterFirstLeaf(minNodeID,
+//                                                              new BytesRef("zzzzz"),
+//                                                              false);
+//
+//            while (true)
+//            {
+//                final long rowID = leafPostings.nextPosting();
+//                if (rowID == PostingList.END_OF_STREAM) break;
+//                System.out.println("rowid="+rowID);
+//            }
 
 //            PostingList leafPostings = reader.filterFirstLeaf(minNodeID,
 //                                                              new BytesRef("zzzz"),

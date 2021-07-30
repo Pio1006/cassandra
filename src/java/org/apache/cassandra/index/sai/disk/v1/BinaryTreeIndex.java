@@ -33,59 +33,6 @@ public class BinaryTreeIndex
         level = 1;
     }
 
-//    public Traverser traverse(int minNodeID, int maxNodeID)
-//    {
-//        return new Traverser(this, minNodeID, maxNodeID);
-//    }
-//
-//    public static class Traverser
-//    {
-//        public final BinaryTreeIndex tree;
-//        public final int minNodeID;
-//        public final int maxNodeID;
-//
-//        public Traverser(BinaryTreeIndex tree, int minNodeID, int maxNodeID)
-//        {
-//            this.tree = tree;
-//            this.minNodeID = minNodeID;
-//            this.maxNodeID = maxNodeID;
-//        }
-//
-//        public void traverse()
-//        {
-//            final int nodeID = tree.getNodeID();
-//
-//            if (nodeID > maxNodeID || nodeID < minNodeID)
-//            {
-//                return;
-//            }
-//
-//            if (tree.isLeafNode())
-//            {
-//                // In the unbalanced case it's possible the left most node only has one child:
-//                if (tree.nodeExists())
-//                {
-//
-//                    //callback.onLeaf(index.getNodeID(), index.getLeafBlockFP(), pathToRoot);
-//                }
-//            }
-//            else
-//            {
-////                final IntArrayList currentPath = new IntArrayList();
-////                currentPath.addAll(pathToRoot);
-////                currentPath.add(nodeID);
-//
-//                tree.pushLeft();
-//                //traverse(callback, index, currentPath);
-//                tree.pop();
-//
-//                tree.pushRight();
-//                //traverse(callback, index, currentPath);
-//                tree.pop();
-//            }
-//        }
-//    }
-
     public int getNodeID()
     {
         return nodeID;

@@ -19,7 +19,12 @@
 package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -84,6 +89,7 @@ public class BlockIndexReader
     long currentLeafFP = -1;
 
     final RangeSet<Integer> multiBlockLeafOrdinalRanges;
+    //final long[] nodeIDToPostingsFP;
 
     public BlockIndexReader(final IndexInput input,
                             final IndexInput input2,
@@ -111,7 +117,7 @@ public class BlockIndexReader
         for (int x = 0; x < meta.numLeaves; x++)
         {
             long leafFP = input.readVLong();
-            System.out.println("leafFP="+leafFP);
+            //System.out.println("leafFP="+leafFP);
             leafFPBuilder.add(leafFP);
         }
         leafFilePointers = leafFPBuilder.build();
@@ -131,6 +137,16 @@ public class BlockIndexReader
             nodeIDToLeaf.put(nodeID, leafOrdinal);
         }
 
+//        nodeIDToPostingsFP[];
+//
+//        for (int x=0; x < meta.numLeaves; x++)
+//        {
+//            nodeIDToLeaf
+//            meta.nodeIDPostingsFP
+//
+//            //nodeIDToPostingsID.get
+//        }
+
         orderMapInput.seek(meta.orderMapFP);
         final int numOrderMaps = orderMapInput.readVInt();
         for (int x = 0; x < numOrderMaps; x++)
@@ -141,6 +157,83 @@ public class BlockIndexReader
         }
 
         this.indexFile = indexFile;
+    }
+
+    public PostingList traverse(ByteComparable start,
+                                ByteComparable end) throws IOException
+    {
+        SortedSet<Integer> nodeIDs = traverseForNodeIDs(start, end);
+
+        List<Pair<Integer,Integer>> nodeIDToLeafOrd = new ArrayList<>();
+
+        for (int nodeID : nodeIDs)
+        {
+            long leafOrdinal = nodeIDToLeaf.get(nodeID);
+            Long postingsFP = null;
+            if (meta.nodeIDPostingsFP.containsKey(nodeID))
+            {
+                postingsFP = meta.nodeIDPostingsFP.get(nodeID);
+            }
+
+            if (postingsFP != null)
+                nodeIDToLeafOrd.add(Pair.create(nodeID, (int) leafOrdinal));
+
+            System.out.println("nodeID=" + nodeID + " leafOrdinal=" + leafOrdinal + " postingsFP=" + postingsFP);
+        }
+        // sort by leaf id
+        Collections.sort(nodeIDToLeafOrd, (o1, o2) -> Integer.compare(o1.right, o2.right));
+        int minNodeID = nodeIDToLeafOrd.get(0).left;
+        int minLeafOrd = nodeIDToLeafOrd.get(0).right.intValue();
+        int maxNodeID = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).left;
+        int maxLeafOrd = nodeIDToLeafOrd.get(nodeIDToLeafOrd.size() - 1).right;
+
+        List<PostingList.PeekablePostingList> postingLists = new ArrayList<>();
+
+        //Range<Integer> minRange = meta.multiBlockLeafOrdinalRanges.rangeContaining(minLeafOrd);
+        boolean minRangeExists = meta.multiBlockLeafOrdinalRanges.contains(minLeafOrd);
+
+        int startOrd = 1;
+        int endOrd = nodeIDToLeafOrd.size() - 1;
+
+        //if (minRange != null)
+        if (minRangeExists)
+        {
+            //startOrd = 0;
+        }
+        else
+        {
+            BytesRef startBytes = new BytesRef(ByteSourceInverse.readBytes(start.asComparableBytes(ByteComparable.Version.OSS41)));
+            PostingList firstList = filterFirstLeaf(minNodeID, startBytes, false);
+            postingLists.add(firstList.peekable());
+        }
+
+        //Range<Integer> maxRange = meta.multiBlockLeafOrdinalRanges.rangeContaining(maxLeafOrd);
+        boolean maxRangeExists = meta.multiBlockLeafOrdinalRanges.contains(maxLeafOrd);
+
+        if (maxRangeExists)
+        {
+
+        }
+        else
+        {
+            BytesRef endBytes = new BytesRef(ByteSourceInverse.readBytes(end.asComparableBytes(ByteComparable.Version.OSS41)));
+            PostingList lastList = filterLastLeaf(maxNodeID, endBytes, false);
+            postingLists.add(lastList.peekable());
+        }
+
+        // make sure to iterate over the posting lists in leaf id order
+        for (int x=startOrd; x < nodeIDToLeafOrd.size() - 1; x++)
+        {
+            Pair<Integer,Integer> nodeIDLeafOrd = nodeIDToLeafOrd.get(x);
+            final long postingsFP = nodeIDToPostingsFP.get(nodeIDLeafOrd.left);
+            System.out.println("nodeID=" + nodeIDLeafOrd.left + " postingsFP=" + postingsFP);
+            PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsInput, postingsFP);
+            PostingsReader postings = new PostingsReader(postingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
+            postingLists.add(postings.peekable());
+        }
+        PriorityQueue postingsQueue = new PriorityQueue(postingLists.size(), Comparator.comparingLong(PostingList.PeekablePostingList::peek));
+        postingsQueue.addAll(postingLists);
+        return MergePostingList.merge(postingsQueue);
     }
 
     public SortedSet<Integer> traverseForNodeIDs(ByteComparable start,
@@ -165,7 +258,14 @@ public class BlockIndexReader
 
         if (min > 0)
         {
-            min--; // get the previous node to filter
+            int prevMin = min - 1;
+            boolean contains = multiBlockLeafOrdinalRanges.contains(prevMin);
+            System.out.println("     prevMin="+prevMin+" contains="+contains);
+            if (!contains)
+            {
+                System.out.println("   min-- min="+min);
+                min--;
+            }
         }
 
         System.out.println("multiBlockRange="+multiBlockRange+" max="+max+" multiBlockLeafOrdinalRanges="+multiBlockLeafOrdinalRanges);
@@ -242,7 +342,7 @@ public class BlockIndexReader
 
         final long orderMapFP = leafToOrderMapFP.get(leaf);
         final long postingsFP = nodeIDToPostingsFP.get(nodeID);
-        System.out.println("nodeID="+nodeID+" postingsFP="+postingsFP);
+        System.out.println("nodeID="+nodeID+" postingsFP="+postingsFP+" startIdx="+startIdx);
         PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsInput, postingsFP);
         PostingsReader postings = new PostingsReader(postingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
         final int startIdxFinal = startIdx;
@@ -286,7 +386,11 @@ public class BlockIndexReader
                                        SimpleVisitor visitor,
                                        Set<Integer> resultNodeIDs) throws IOException
     {
+        final int nodeID = index.getNodeID();
         final PointValues.Relation r = visitor.compare(cellMinLeafOrdinal, cellMaxLeafOrdinal);
+
+        int leafID = (int)this.nodeIDToLeaf.get(nodeID);
+        System.out.println("  collectPostingLists nodeID="+nodeID+" leafID="+leafID+" relation="+r);
 
         if (r == PointValues.Relation.CELL_OUTSIDE_QUERY)
         {
@@ -296,11 +400,10 @@ public class BlockIndexReader
 
         if (r == PointValues.Relation.CELL_INSIDE_QUERY)
         {
-            final int nodeID = index.getNodeID();
-
             // if there is pre-built posting for entire subtree
             if (nodeIDToPostingsFP.containsKey(nodeID))
             {
+                System.out.println("  nodeID="+nodeID+" has postings");
                 resultNodeIDs.add(nodeID);
                 return;
             }
@@ -320,7 +423,7 @@ public class BlockIndexReader
         {
             if (index.nodeExists())
             {
-                int nodeID = index.getNodeID();
+                //int nodeID = index.getNodeID();
                 System.out.println("leafNodeID="+nodeID);
                 resultNodeIDs.add(nodeID);
             }
@@ -342,6 +445,8 @@ public class BlockIndexReader
     {
         int nodeID = index.getNodeID();
         int splitLeafOrdinal = (int) nodeIDToLeaf.get(nodeID);
+
+        System.out.println("  visitNode nodeID="+nodeID+" splitLeafOrdinal="+splitLeafOrdinal);
 
         index.pushLeft();
         collectPostingLists(cellMinPacked, splitLeafOrdinal, index, visitor, resultNodeIDs);
@@ -472,7 +577,7 @@ public class BlockIndexReader
 
         arraysFilePointer = input.getFilePointer();
 
-        System.out.println("arraysFilePointer="+arraysFilePointer+" lengthsBytesLen="+lengthsBytesLen+" prefixBytesLen="+prefixBytesLen+" lengthsBits="+lengthsBits+" prefixBits="+prefixBits);
+        //System.out.println("arraysFilePointer="+arraysFilePointer+" lengthsBytesLen="+lengthsBytesLen+" prefixBytesLen="+prefixBytesLen+" lengthsBits="+lengthsBits+" prefixBits="+prefixBits);
 
         lengthsReader = DirectReaders.getReaderForBitsPerValue(lengthsBits);
         prefixesReader = DirectReaders.getReaderForBitsPerValue(prefixBits);
@@ -486,10 +591,6 @@ public class BlockIndexReader
 
     public BytesRef seekInBlock(int seekIndex) throws IOException
     {
-//        if (seekIndex < index)
-//        {
-//            throw new IllegalArgumentException("seekIndex="+seekIndex+" must be greater than index="+index);
-//        }
         if (seekIndex >= leafSize)
         {
             throw new IllegalArgumentException("seekIndex="+seekIndex+" must be less than the leaf size="+leafSize);
@@ -515,7 +616,7 @@ public class BlockIndexReader
             len = LeafOrderMap.getValue(seekingInput, arraysFilePointer, x, lengthsReader);
             prefix = LeafOrderMap.getValue(seekingInput, arraysFilePointer + lengthsBytesLen, x, prefixesReader);
 
-            System.out.println("x="+x+" len="+len+" prefix="+prefix);
+            //System.out.println("x="+x+" len="+len+" prefix="+prefix);
 
             if (x == 0)
             {
@@ -523,7 +624,7 @@ public class BlockIndexReader
                 input.seek(leafBytesStartFP);
                 input.readBytes(firstTerm, 0, len);
                 lastPrefix = len;
-                System.out.println("firstTerm="+new BytesRef(firstTerm).utf8ToString());
+                //System.out.println("firstTerm="+new BytesRef(firstTerm).utf8ToString());
                 bytesLength = 0;
                 leafBytesFP += len;
             }
@@ -533,7 +634,7 @@ public class BlockIndexReader
                 bytesLength = len - prefix;
                 lastLen = len;
                 lastPrefix = prefix;
-                System.out.println("x=" + x + " bytesLength=" + bytesLength + " len=" + len + " prefix=" + prefix);
+                //System.out.println("x=" + x + " bytesLength=" + bytesLength + " len=" + len + " prefix=" + prefix);
             }
             else
             {
@@ -547,22 +648,22 @@ public class BlockIndexReader
         {
             builder.clear();
 
-            System.out.println("bytesPosition=" + leafBytesFP + " bytesPositionStart=" + leafBytesStartFP + " total=" + (leafBytesFP - leafBytesStartFP));
+            //System.out.println("bytesPosition=" + leafBytesFP + " bytesPositionStart=" + leafBytesStartFP + " total=" + (leafBytesFP - leafBytesStartFP));
 
-            System.out.println("lastlen=" + lastLen + " lastPrefix=" + lastPrefix + " bytesLength=" + bytesLength);
+            //System.out.println("lastlen=" + lastLen + " lastPrefix=" + lastPrefix + " bytesLength=" + bytesLength);
             final byte[] bytes = new byte[bytesLength];
             input.seek(leafBytesFP);
             input.readBytes(bytes, 0, bytesLength);
 
             leafBytesFP += bytesLength;
 
-            System.out.println("bytes read=" + new BytesRef(bytes).utf8ToString());
+            //System.out.println("bytes read=" + new BytesRef(bytes).utf8ToString());
 
             builder.append(firstTerm, 0, lastPrefix);
             builder.append(bytes, 0, bytes.length);
         }
 
-        System.out.println("str="+builder.get().utf8ToString());
+        System.out.println("term="+builder.get().utf8ToString());
         return builder.get();
     }
 
@@ -616,6 +717,7 @@ public class BlockIndexReader
 
                 int minCmp = Integer.compare(minValue, lower.bound);
                 crosses |= lower.greaterThan(minCmp);
+                System.out.println("  minValue="+minValue+" lower="+lower.bound+" minCmp="+minCmp+" crosses="+crosses);
             }
 
             if (upper != null)

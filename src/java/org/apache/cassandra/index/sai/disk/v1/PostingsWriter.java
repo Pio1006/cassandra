@@ -203,6 +203,7 @@ public class PostingsWriter implements Closeable
 
     public void initPostings()
     {
+        System.out.println("initPostings");
         postingsWritten = 0;
         resetBlockCounters();
         blockOffsets.clear();
@@ -217,6 +218,7 @@ public class PostingsWriter implements Closeable
 
     public long completePostings() throws IOException
     {
+        System.out.println("completePostings");
         finish();
 
         final long summaryOffset = dataOutput.getFilePointer();

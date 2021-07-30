@@ -83,7 +83,7 @@ public class FilteringPostingList2 implements PostingList
     @Override
     public long size()
     {
-        return cardinality;
+        return delegate.size();
     }
 
     @Override
