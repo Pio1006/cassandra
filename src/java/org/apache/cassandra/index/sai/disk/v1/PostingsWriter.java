@@ -217,7 +217,6 @@ public class PostingsWriter implements Closeable
 
     public long completePostings() throws IOException
     {
-        System.out.println("completePostings");
         finish();
 
         final long summaryOffset = dataOutput.getFilePointer();

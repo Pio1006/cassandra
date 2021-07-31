@@ -18,11 +18,10 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.SortedSet;
 
 import com.google.common.collect.Range;
 import com.google.common.collect.TreeRangeSet;
@@ -30,8 +29,11 @@ import org.junit.Test;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PostingList;
+import org.apache.cassandra.index.sai.disk.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
 import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
@@ -39,12 +41,18 @@ import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 
+import static org.apache.cassandra.index.sai.disk.v1.BKDReaderTest.buildQuery;
+import static org.apache.cassandra.index.sai.metrics.QueryEventListeners.NO_OP_BKD_LISTENER;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class BlockIndexWriterTest extends NdiRandomizedTest
 {
@@ -169,7 +177,6 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
         IndexOutput ordermapout = dir.createOutput("ordermap", IOContext.DEFAULT);
 
         IndexComponents comps = newIndexComponents();
-
         IndexOutputWriter indexOut = comps.createOutput(comps.kdTree);
         IndexOutput postingsOut = dir.createOutput("postings", IOContext.DEFAULT);//comps.createOutput(comps.kdTreePostingLists);
 
@@ -272,6 +279,192 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
 //            }
 //            System.out.println("results="+results);
         }
+    }
+
+    @Test
+    public void randomTest() throws Exception
+    {
+        for (int x = 0; x < 1000; x++)
+        {
+            doRandomTest();
+        }
+    }
+
+    public void doRandomTest() throws Exception
+    {
+        List<Pair<ByteComparable, IntArrayList>> list = new ArrayList();
+        int numValues = nextInt(5, 10);
+        final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(1, Integer.BYTES);
+
+        int maxRowID = -1;
+        int totalRows = 0;
+        for (int x = 0; x < numValues; x++)
+        {
+            byte[] scratch = new byte[4];
+            NumericUtils.intToSortableBytes(x, scratch, 0);
+
+            int numRows = nextInt(1, 5);
+            int rowID = nextInt(100);
+            IntArrayList postings = new IntArrayList();
+            for (int i = 0; i < numRows; i++)
+            {
+                maxRowID = Math.max(maxRowID, rowID);
+                postings.add(rowID);
+                totalRows++;
+                buffer.addPackedValue(rowID, new BytesRef(scratch));
+                rowID += nextInt(1, 100);
+            }
+            System.out.println("term="+x+" postings="+postings);
+            list.add(Pair.create(ByteComparable.fixedLength(scratch), postings));
+        }
+
+        int startIdx = nextInt(0, numValues - 2);
+        ByteComparable start = list.get(startIdx).left;
+
+        int queryMin = NumericUtils.sortableBytesToInt(ByteSourceInverse.readBytes(start.asComparableBytes(ByteComparable.Version.OSS41)), 0);
+
+        int endIdx = nextInt(startIdx + 1, numValues - 1);
+        ByteComparable end = list.get(endIdx).left;
+
+        int queryMax = NumericUtils.sortableBytesToInt(ByteSourceInverse.readBytes(end.asComparableBytes(ByteComparable.Version.OSS41)), 0);
+
+        System.out.println("queryMin="+queryMin+" queryMax="+queryMax+" totalRows="+totalRows+" maxRowID="+maxRowID);
+
+        final IndexComponents indexComponents = newIndexComponents();
+
+        final BKDReader bkdReader = finishAndOpenReaderOneDim(2,
+                                                              buffer,
+                                                              indexComponents,
+                                                              maxRowID + 1,
+                                                              totalRows);
+
+        final PostingList kdtreePostings = bkdReader.intersect(buildQuery(queryMin, queryMax), NO_OP_BKD_LISTENER, new QueryContext());
+        IntArrayList kdtreePostingList = collect(kdtreePostings);
+        kdtreePostings.close();
+        bkdReader.close();
+
+
+        ByteBuffersDirectory dir = new ByteBuffersDirectory();
+        IndexOutput out = dir.createOutput("file", IOContext.DEFAULT);
+        IndexOutput ordermapout = dir.createOutput("ordermap", IOContext.DEFAULT);
+
+        IndexComponents comps = newIndexComponents();
+        IndexOutputWriter indexOut = comps.createOutput(comps.kdTree);
+        IndexOutput postingsOut = dir.createOutput("postings", IOContext.DEFAULT);//comps.createOutput(comps.kdTreePostingLists);
+
+        BlockIndexWriter prefixBytesWriter = new BlockIndexWriter(out, indexOut, postingsOut, ordermapout);
+
+        TermsIterator terms = new MemtableTermsIterator(null,
+                                                        null,
+                                                        list.iterator());
+
+        int pointCount = 0;
+        while (terms.hasNext())
+        {
+            ByteComparable term = terms.next();
+            PostingList postings = terms.postings();
+            while (true)
+            {
+                long rowID = postings.nextPosting();
+                if (rowID == PostingList.END_OF_STREAM) break;
+                prefixBytesWriter.add(term, rowID);
+                pointCount++;
+            }
+        }
+
+        BlockIndexWriter.BlockIndexMeta meta = prefixBytesWriter.finish();
+
+        ordermapout.close();
+        out.close();
+        indexOut.close();
+        postingsOut.close();
+
+        try (IndexInput input = dir.openInput("file", IOContext.DEFAULT);
+             IndexInput input2 = dir.openInput("file", IOContext.DEFAULT);
+             IndexInput ordermapInput = dir.openInput("ordermap", IOContext.DEFAULT);
+             IndexInput postingsInput = dir.openInput("postings", IOContext.DEFAULT))
+        {
+            FileHandle indexFile = comps.createFileHandle(comps.kdTree);
+            BlockIndexReader reader = new BlockIndexReader(input,
+                                                           input2,
+                                                           indexFile,
+                                                           ordermapInput,
+                                                           postingsInput,
+                                                           meta);
+
+            PostingList postings = reader.traverse(start, end);
+            IntArrayList results2 = collect(postings);
+
+            System.out.println("kdtreePostingList="+kdtreePostingList);
+            System.out.println("results2="+results2);
+
+            assertEquals(kdtreePostingList, results2);
+
+//            while (true)
+//            {
+//                final long rowID = postings.nextPosting();
+//                final long rowID2 = kdtreePostings.nextPosting();
+//                if (rowID == PostingList.END_OF_STREAM)
+//                {
+//                    assert rowID2 == PostingList.END_OF_STREAM;
+//                    break;
+//                }
+//                System.out.println("rowid=" + rowID);
+//
+//                assertEquals(rowID, rowID2);
+//            }
+        }
+
+
+    }
+
+    private IntArrayList collect(PostingList postings) throws IOException
+    {
+        IntArrayList list = new IntArrayList();
+        if (postings == null) return list;
+        while (true)
+        {
+            long rowid = postings.nextPosting();
+            if (rowid == PostingList.END_OF_STREAM) break;
+            if (list.size() > 0)
+            {
+                if (list.get(list.size() - 1) == rowid)
+                {
+                    continue;
+                }
+            }
+            list.add((int) rowid);
+        }
+        return list;
+    }
+
+    private BKDReader finishAndOpenReaderOneDim(int maxPointsPerLeaf,
+                                                BKDTreeRamBuffer buffer,
+                                                IndexComponents indexComponents,
+                                                int maxRowID,
+                                                int totalRows) throws IOException
+    {
+        final NumericIndexWriter writer = new NumericIndexWriter(indexComponents,
+                                                                 maxPointsPerLeaf,
+                                                                 Integer.BYTES,
+                                                                 maxRowID,
+                                                                 totalRows,
+                                                                 new IndexWriterConfig("test", 2, 8),
+                                                                 false);
+
+        final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(buffer.asPointValues());
+        final long bkdPosition = metadata.get(IndexComponents.NDIType.KD_TREE).root;
+        assertThat(bkdPosition, is(greaterThan(0L)));
+        final long postingsPosition = metadata.get(IndexComponents.NDIType.KD_TREE_POSTING_LISTS).root;
+        assertThat(postingsPosition, is(greaterThan(0L)));
+
+        FileHandle kdtree = indexComponents.createFileHandle(indexComponents.kdTree);
+        FileHandle kdtreePostings = indexComponents.createFileHandle(indexComponents.kdTreePostingLists);
+        return new BKDReader(indexComponents,
+                             kdtree,
+                             bkdPosition,
+                             kdtreePostings,
+                             postingsPosition);
     }
 
     public static Pair<ByteComparable, IntArrayList> add(String term, int[] array)

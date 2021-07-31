@@ -297,7 +297,7 @@ public class BKDReaderTest extends NdiRandomizedTest
         assertNull(intersection);
     }
 
-    private BKDReader.IntersectVisitor buildQuery(int queryMin, int queryMax)
+    public static BKDReader.IntersectVisitor buildQuery(int queryMin, int queryMax)
     {
         return new BKDReader.IntersectVisitor()
         {

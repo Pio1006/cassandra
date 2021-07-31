@@ -42,6 +42,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FutureArrays;
+import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.DirectWriter;
 
 import static org.apache.cassandra.index.sai.disk.v1.BlockIndexReader.fixedLength;
@@ -49,7 +50,7 @@ import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZ
 
 public class BlockIndexWriter
 {
-    public static final int LEAF_SIZE = 2;
+    public static final int LEAF_SIZE = 6;
 
     // TODO: there are extra
 
@@ -172,6 +173,7 @@ public class BlockIndexWriter
         int start = 0;
         int leafIdx = 0;
         // write distinct min block terms and the min and max leaf id's encoded as a long
+        BytesRefBuilder lastTerm = new BytesRefBuilder();
         for (leafIdx = 0; leafIdx < blockMinValues.size(); leafIdx++)
         {
             BytesRef minValue = blockMinValues.get(leafIdx);
@@ -198,21 +200,24 @@ public class BlockIndexWriter
                         }
                     }
 
-                    System.out.println("termsIndexWriter write term="+prevMinValue.utf8ToString()+" startLeaf="+startLeaf+" endLeaf="+endLeaf);
+                    //System.out.println("termsIndexWriter write term="+prevMinValue.utf8ToString()+" startLeaf="+startLeaf+" endLeaf="+endLeaf);
                     long encodedLong = (((long)startLeaf) << 32) | (endLeaf & 0xffffffffL);
                     // TODO: when the start and end leaf's are the same encode a single int
+                    System.out.println("termsIndexWriter add minValue="+NumericUtils.sortableBytesToInt(prevMinValue.bytes, 0));
                     termsIndexWriter.add(fixedLength(prevMinValue), new Long(encodedLong));
+                    lastTerm.clear();
+                    lastTerm.append(prevMinValue);
                     distinctCount = 0;
                     start = leafIdx;
                 }
             }
             // TODO: assert that these results match the multi-block rangeset
-            if (leafIdx == blockMinValues.size() - 1)
+            if (leafIdx == blockMinValues.size() - 1 && leafIdx > 0)
             {
                 final int endLeaf = leafIdx;
                 //final BytesRef minValue = blockMinValues.get(leafIdx);
                 BytesRef prevMinValue = blockMinValues.get(leafIdx - 1);
-                System.out.println("termsIndexWriter write2 prevMinValue="+prevMinValue.utf8ToString()+" start="+start+" endLeaf="+endLeaf);
+                //System.out.println("termsIndexWriter write2 prevMinValue="+prevMinValue.utf8ToString()+" start="+start+" endLeaf="+endLeaf);
                 long encodedLong = (((long)start) << 32) | (endLeaf & 0xffffffffL);
                 if (minValue.equals(prevMinValue))
                 {
@@ -232,7 +237,18 @@ public class BlockIndexWriter
                         }
                     }
                 }
-                termsIndexWriter.add(fixedLength(prevMinValue), new Long(encodedLong));
+//                else
+//                {
+                if (!minValue.equals(lastTerm.get()))
+                {
+                    assert minValue.compareTo(lastTerm.get()) > 0;
+
+                    System.out.println("termsIndexWriter last add minValue=" + NumericUtils.sortableBytesToInt(minValue.bytes, 0));
+                    termsIndexWriter.add(fixedLength(minValue), new Long(encodedLong));
+                    lastTerm.clear();
+                    lastTerm.append(minValue);
+                }
+                //}
             }
             distinctCount++;
         }
@@ -405,9 +421,9 @@ public class BlockIndexWriter
 
         if (lastAddedTerm.length() > 0 && !termBuilder.get().equals(lastAddedTerm.get()))
         {
-            System.out.println("term=" + termBuilder.get().utf8ToString()
-                               + " termOrdinal=" + termOrdinal
-                               + " lastAddedTerm=" + lastAddedTerm.get().utf8ToString());
+//            System.out.println("term=" + termBuilder.get().utf8ToString()
+//                               + " termOrdinal=" + termOrdinal
+//                               + " lastAddedTerm=" + lastAddedTerm.get().utf8ToString());
             termOrdinal++;
         }
 
@@ -436,7 +452,7 @@ public class BlockIndexWriter
             currentBuffer.prefixes[currentBuffer.leafOrdinal] = prefix;
             currentBuffer.lengths[currentBuffer.leafOrdinal] = termBuilder.get().length;
         }
-        System.out.println("term=" + termBuilder.get().utf8ToString() + " prefix=" + currentBuffer.prefixes[currentBuffer.leafOrdinal] + " length=" + currentBuffer.lengths[currentBuffer.leafOrdinal]);
+        // System.out.println("term=" + termBuilder.get().utf8ToString() + " prefix=" + currentBuffer.prefixes[currentBuffer.leafOrdinal] + " length=" + currentBuffer.lengths[currentBuffer.leafOrdinal]);
 
         int prefix = currentBuffer.prefixes[currentBuffer.leafOrdinal];
         int len = termBuilder.get().length - currentBuffer.prefixes[currentBuffer.leafOrdinal];
@@ -512,6 +528,7 @@ public class BlockIndexWriter
             }
             else
             {
+                System.out.println("   flushPreviousBufferAndSwap completePostings previousBuffer.leaf="+previousBuffer.leaf);
                 final long postingsFP = postingsWriter.completePostings();
                 this.leafToPostingsFP.put(previousBuffer.leaf, postingsFP);
             }
@@ -531,6 +548,8 @@ public class BlockIndexWriter
 
         assert minValue.equals(buffer.minValue);
 
+        System.out.println("   writeLeaf leaf=" + buffer.leaf + " minValue=" + NumericUtils.sortableBytesToInt(buffer.minValue.bytes, 0));
+
         this.leafFilePointers.add((long) buffer.leaf);
 
         if (buffer.allLeafValuesSame)
@@ -538,7 +557,7 @@ public class BlockIndexWriter
             leafValuesSame.set(buffer.leaf);
         }
 
-        System.out.println("  writeLeaf buffer.leaf=" + buffer.leaf + " minValue=" + minValue.utf8ToString() + " allLeafValuesSame=" + buffer.allLeafValuesSame);
+        //System.out.println("  writeLeaf buffer.leaf=" + buffer.leaf + " minValue=" + minValue.utf8ToString() + " allLeafValuesSame=" + buffer.allLeafValuesSame);
 
         if (buffer.leaf > 0)
         {
@@ -745,7 +764,7 @@ public class BlockIndexWriter
         @Override
         public String toString()
         {
-            return "RowIDLeafOrdinal{" +
+            return "{" +
                    "leafOrdinal=" + leafOrdinal +
                    ", rowID=" + rowID +
                    '}';
