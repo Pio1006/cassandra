@@ -178,9 +178,9 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
 
         IndexComponents comps = newIndexComponents();
         IndexOutputWriter indexOut = comps.createOutput(comps.kdTree);
-        IndexOutput postingsOut = dir.createOutput("postings", IOContext.DEFAULT);//comps.createOutput(comps.kdTreePostingLists);
+        //IndexOutput postingsOut = dir.createOutput("postings", IOContext.DEFAULT);//comps.createOutput(comps.kdTreePostingLists);
 
-        BlockIndexWriter prefixBytesWriter = new BlockIndexWriter(out, indexOut, postingsOut, ordermapout);
+        BlockIndexWriter prefixBytesWriter = new BlockIndexWriter(out, indexOut, ordermapout, dir);
 
         TermsIterator terms = new MemtableTermsIterator(null,
                                                         null,
@@ -202,7 +202,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
 
         BlockIndexWriter.BlockIndexMeta meta = prefixBytesWriter.finish();
 
-        postingsOut.close();
+        //postingsOut.close();
 
         try (IndexInput input = dir.openInput("file", IOContext.DEFAULT);
              IndexInput input2 = dir.openInput("file", IOContext.DEFAULT);
@@ -284,7 +284,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
     @Test
     public void randomTest() throws Exception
     {
-        for (int x = 0; x < 1000; x++)
+        for (int x = 0; x < 100; x++)
         {
             doRandomTest();
         }
@@ -293,7 +293,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
     public void doRandomTest() throws Exception
     {
         List<Pair<ByteComparable, IntArrayList>> list = new ArrayList();
-        int numValues = nextInt(5, 50);
+        int numValues = nextInt(5, 100);
         final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(1, Integer.BYTES);
 
         int maxRowID = -1;
@@ -350,9 +350,8 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
 
         IndexComponents comps = newIndexComponents();
         IndexOutputWriter indexOut = comps.createOutput(comps.kdTree);
-        IndexOutput postingsOut = dir.createOutput("postings", IOContext.DEFAULT);//comps.createOutput(comps.kdTreePostingLists);
 
-        BlockIndexWriter prefixBytesWriter = new BlockIndexWriter(out, indexOut, postingsOut, ordermapout);
+        BlockIndexWriter prefixBytesWriter = new BlockIndexWriter(out, indexOut, ordermapout, dir);
 
         TermsIterator terms = new MemtableTermsIterator(null,
                                                         null,
@@ -377,12 +376,11 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
         ordermapout.close();
         out.close();
         indexOut.close();
-        postingsOut.close();
 
         try (IndexInput input = dir.openInput("file", IOContext.DEFAULT);
              IndexInput input2 = dir.openInput("file", IOContext.DEFAULT);
              IndexInput ordermapInput = dir.openInput("ordermap", IOContext.DEFAULT);
-             IndexInput postingsInput = dir.openInput("postings", IOContext.DEFAULT))
+             IndexInput postingsInput = dir.openInput("leafpostings", IOContext.DEFAULT))
         {
             FileHandle indexFile = comps.createFileHandle(comps.kdTree);
             BlockIndexReader reader = new BlockIndexReader(input,
@@ -399,23 +397,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
             System.out.println("results2="+results2);
 
             assertEquals(kdtreePostingList, results2);
-
-//            while (true)
-//            {
-//                final long rowID = postings.nextPosting();
-//                final long rowID2 = kdtreePostings.nextPosting();
-//                if (rowID == PostingList.END_OF_STREAM)
-//                {
-//                    assert rowID2 == PostingList.END_OF_STREAM;
-//                    break;
-//                }
-//                System.out.println("rowid=" + rowID);
-//
-//                assertEquals(rowID, rowID2);
-//            }
         }
-
-
     }
 
     private IntArrayList collect(PostingList postings) throws IOException
