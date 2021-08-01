@@ -66,7 +66,7 @@ public class BlockIndexWriter
     final IndexOutputWriter indexOut;
     final IndexOutput leafPostingsOut, orderMapOut;
 
-    final BitSet leafValuesSame = new BitSet();
+    final BitSet leafValuesSame = new BitSet(); // marked when all values in a leaf are the same
 
     final BytesRefBuilder termBuilder = new BytesRefBuilder();
     final BytesRefBuilder lastTermBuilder = new BytesRefBuilder();
@@ -426,33 +426,11 @@ public class BlockIndexWriter
                                   nodeIDToPostingsFP);
     }
 
-    public static int bytesDifference(BytesRef priorTerm, BytesRef currentTerm)
-    {
-        int mismatch = FutureArrays.mismatch(priorTerm.bytes, priorTerm.offset, priorTerm.offset + priorTerm.length, currentTerm.bytes, currentTerm.offset, currentTerm.offset + currentTerm.length);
-        return mismatch;
-    }
-
     public void add(ByteComparable term, long rowID) throws IOException
     {
-        int length = 0;
-        final ByteSource byteSource = term.asComparableBytes(ByteComparable.Version.OSS41);
 
         termBuilder.clear();
-
-        // gather the term bytes from the byteSource
-        while (true)
-        {
-            final int val = byteSource.next();
-            if (val != ByteSource.END_OF_STREAM)
-            {
-                ++length;
-                termBuilder.append((byte)val);
-            }
-            else
-            {
-                break;
-            }
-        }
+        int length = gatherBytes(term, termBuilder);
 
         if (currentBuffer.leafOrdinal > 0 && !termBuilder.get().equals(lastAddedTerm.get()))
         {
@@ -809,5 +787,32 @@ public class BlockIndexWriter
                    ", rowID=" + rowID +
                    '}';
         }
+    }
+
+    public static int bytesDifference(BytesRef priorTerm, BytesRef currentTerm)
+    {
+        int mismatch = FutureArrays.mismatch(priorTerm.bytes, priorTerm.offset, priorTerm.offset + priorTerm.length, currentTerm.bytes, currentTerm.offset, currentTerm.offset + currentTerm.length);
+        return mismatch;
+    }
+
+    public static int gatherBytes(ByteComparable term, BytesRefBuilder builder)
+    {
+        final ByteSource byteSource = term.asComparableBytes(ByteComparable.Version.OSS41);
+        int length = 0;
+        // gather the term bytes from the byteSource
+        while (true)
+        {
+            final int val = byteSource.next();
+            if (val != ByteSource.END_OF_STREAM)
+            {
+                ++length;
+                builder.append((byte) val);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return length;
     }
 }

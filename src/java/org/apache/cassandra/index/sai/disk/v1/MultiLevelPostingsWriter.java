@@ -130,10 +130,11 @@ public class MultiLevelPostingsWriter
         final long startFP = out.getFilePointer();
         final Stopwatch flushTime = Stopwatch.createStarted();
         final TreeMultimap<Integer, Long> nodeIDToPostingsFP = TreeMultimap.create();
-        //for (int nodeID : Iterables.concat(internalNodeIDs, leafNodeIDs))
         for (final int nodeID : internalNodeIDs)
         {
             Collection<Integer> leafNodeIDs = nodeToChildLeaves.get(nodeID);
+
+            assert leafNodeIDs.size() > 0;
 
             for (int n : leafNodeIDs)
             {
@@ -147,96 +148,86 @@ public class MultiLevelPostingsWriter
             int maxLeaf = -1;
             int minLeaf = Integer.MAX_VALUE;
 
-            if (leafNodeIDs.size() == 0)
+            // skip leaf nodes they're not overlapping with multi-block postings
+            // if there are overlapping same value multi-block postings, add the multi-block postings
+            // file pointers, and remove the multi-block node ids from leafNodeIDs
+            // so the same value multi-block postings aren't added to the aggregated node posting list
+            for (final int leafNodeID : leafNodeIDs)
             {
-                assert this.leafNodeIDs.contains(nodeID);
-
-                leafNodeIDs = Collections.singletonList(nodeID);
-                numLeafPostings++;
+                final int leaf = nodeIDToLeafOrdinal.get(leafNodeID);
+                maxLeaf = Math.max(leaf, maxLeaf);
+                minLeaf = Math.min(leaf, minLeaf);
             }
-            else
+
+            // if there are multi-block ranges then remove their node ids from the ultimate posting list
+
+            assert minLeaf != Integer.MAX_VALUE;
+            assert maxLeaf != -1;
+
+            final Range<Integer> multiBlockMin = multiBlockLeafRanges.rangeContaining(minLeaf);
+            final Range<Integer> multiBlockMax = multiBlockLeafRanges.rangeContaining(maxLeaf);
+
+            System.out.println("minLeaf=" + minLeaf + " multiBlockMin=" + multiBlockMin);
+            System.out.println("maxLeaf=" + maxLeaf + " multiBlockMax=" + multiBlockMax);
+
+            if (multiBlockMin != null)
             {
-                // skip leaf nodes they're not overlapping with multi-block postings
-                // if there are overlapping same value multi-block postings, add the multi-block postings
-                // file pointers, and remove the multi-block node ids from leafNodeIDs
-                // so the same value multi-block postings aren't added to the aggregated node posting list
-                for (final int leafNodeID : leafNodeIDs)
+                final int startLeaf = multiBlockMin.lowerEndpoint();
+                final int endLeaf = multiBlockMin.upperEndpoint();
+
+                Integer leafNodeID = this.leafToNodeID.get(endLeaf);
+
+                assert leafNodeID != null;
+
+                assert nodeIDPostingsFP.containsKey(leafNodeID);
+
+                long multiBlockPostingsFP = nodeIDPostingsFP.get(leafNodeID);
+
+                nodeIDToPostingsFP.put(leafNodeID, multiBlockPostingsFP);
+
+                // remove leaf node's that are in the multi-block posting list
+                for (int leaf = startLeaf; leaf <= endLeaf; leaf++)
                 {
-                    final int leaf = nodeIDToLeafOrdinal.get(leafNodeID);
-                    maxLeaf = Math.max(leaf, maxLeaf);
-                    minLeaf = Math.min(leaf, minLeaf);
+                    assert this.multiBlockLeafRanges.contains(leaf);
+
+                    Integer toRemoveNodeID = this.leafToNodeID.get(leaf);
+                    assert toRemoveNodeID != null;
+                    boolean removed = leafNodeIDsCopy.remove(toRemoveNodeID);
+                    System.out.println("multiBlockMin removed=" + removed + " leaf=" + leaf + " toRemoveNodeID=" + toRemoveNodeID);
                 }
-
-                // if there are multi-block ranges then remove their node ids from the ultimate posting list
-
-                assert minLeaf != Integer.MAX_VALUE;
-                assert maxLeaf != -1;
-
-                final Range<Integer> multiBlockMin = multiBlockLeafRanges.rangeContaining(minLeaf);
-                final Range<Integer> multiBlockMax = multiBlockLeafRanges.rangeContaining(maxLeaf);
-
-                System.out.println("minLeaf="+minLeaf+" multiBlockMin="+multiBlockMin);
-                System.out.println("maxLeaf="+maxLeaf+" multiBlockMax="+multiBlockMax);
-
-                if (multiBlockMin != null)
-                {
-                    final int startLeaf = multiBlockMin.lowerEndpoint();
-                    final int endLeaf = multiBlockMin.upperEndpoint();
-
-                    Integer leafNodeID = this.leafToNodeID.get(endLeaf);
-
-                    assert leafNodeID != null;
-
-                    assert nodeIDPostingsFP.containsKey(leafNodeID);
-
-                    long multiBlockPostingsFP = nodeIDPostingsFP.get(leafNodeID);
-
-                    nodeIDToPostingsFP.put(leafNodeID, multiBlockPostingsFP);
-
-                    // remove leaf node's that are in the multi-block posting list
-                    for (int leaf = startLeaf; leaf <= endLeaf; leaf++)
-                    {
-                        assert this.multiBlockLeafRanges.contains(leaf);
-
-                        Integer toRemoveNodeID = this.leafToNodeID.get(leaf);
-                        assert toRemoveNodeID != null;
-                        boolean removed = leafNodeIDsCopy.remove(toRemoveNodeID);
-                        System.out.println("multiBlockMin removed="+removed+" leaf="+leaf+" toRemoveNodeID="+toRemoveNodeID);
-                    }
-                }
-
-                if (multiBlockMax != null)
-                {
-                    final int startLeaf = multiBlockMax.lowerEndpoint();
-                    final int endLeaf = multiBlockMax.upperEndpoint();
-
-                    Integer leafNodeID = this.leafToNodeID.get(endLeaf);
-
-                    assert nodeIDPostingsFP.containsKey(leafNodeID);
-
-                    long multiBlockPostingsFP = nodeIDPostingsFP.get(leafNodeID);
-
-                    nodeIDToPostingsFP.put(leafNodeID, multiBlockPostingsFP);
-
-                    for (int leaf = startLeaf; leaf <= endLeaf; leaf++)
-                    {
-                        assert this.multiBlockLeafRanges.contains(leaf);
-
-                        Integer toRemoveNodeID = this.leafToNodeID.get(leaf);
-                        assert toRemoveNodeID != null;
-                        boolean removed = leafNodeIDsCopy.remove(toRemoveNodeID);
-                        System.out.println("multiBlockMax removed="+removed+" leaf="+leaf+" toRemoveNodeID="+toRemoveNodeID);
-                    }
-                }
-
-                System.out.println("leafNodeIDs="+leafNodeIDs);
-                System.out.println("leafNodeIDsCopy="+leafNodeIDsCopy);
-
-                numNonLeafPostings++;
             }
+
+            if (multiBlockMax != null)
+            {
+                final int startLeaf = multiBlockMax.lowerEndpoint();
+                final int endLeaf = multiBlockMax.upperEndpoint();
+
+                Integer leafNodeID = this.leafToNodeID.get(endLeaf);
+
+                assert nodeIDPostingsFP.containsKey(leafNodeID);
+
+                long multiBlockPostingsFP = nodeIDPostingsFP.get(leafNodeID);
+
+                nodeIDToPostingsFP.put(leafNodeID, multiBlockPostingsFP);
+
+                for (int leaf = startLeaf; leaf <= endLeaf; leaf++)
+                {
+                    assert this.multiBlockLeafRanges.contains(leaf);
+
+                    Integer toRemoveNodeID = this.leafToNodeID.get(leaf);
+                    assert toRemoveNodeID != null;
+                    boolean removed = leafNodeIDsCopy.remove(toRemoveNodeID);
+                    System.out.println("multiBlockMax removed=" + removed + " leaf=" + leaf + " toRemoveNodeID=" + toRemoveNodeID);
+                }
+            }
+
+            System.out.println("leafNodeIDs=" + leafNodeIDs);
+            System.out.println("leafNodeIDsCopy=" + leafNodeIDsCopy);
+
+            numNonLeafPostings++;
 
             final PriorityQueue<PostingList.PeekablePostingList> postingLists = new PriorityQueue<>(100, Comparator.comparingLong(PostingList.PeekablePostingList::peek));
-            
+
             //for (final Integer leafNodeID : leafNodeIDs)
             for (final Integer leafNodeID : leafNodeIDsCopy)
             {

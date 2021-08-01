@@ -205,7 +205,7 @@ public class BlockIndexReader
             }
             else
             {
-                int leafOrdinal = (int)nodeIDToLeaf.get(nodeID);
+                final int leafOrdinal = (int)nodeIDToLeaf.get(nodeID);
                 Long postingsFP = null;
                 if (meta.nodeIDPostingsFP.containsKey(nodeID))
                 {
@@ -304,7 +304,7 @@ public class BlockIndexReader
         {
             NodeIDLeafFP nodeIDLeafOrd = leafNodeIDToLeafOrd.get(x);
 
-            // negative file pointer means an upper level big posting list in multiPostingsInput
+            // negative file pointer means an upper level big posting list so use multiPostingsInput
             if (nodeIDLeafOrd.filePointer < 0)
             {
                 long fp = nodeIDLeafOrd.filePointer * -1;
@@ -376,6 +376,16 @@ public class BlockIndexReader
         // TODO: check if the leaf is all the same value
         //       if true, there's no need to filter
 
+        final Long orderMapFP;
+        if (leafToOrderMapFP.containsKey(leaf))
+        {
+            orderMapFP = leafToOrderMapFP.get(leaf);
+        }
+        else
+        {
+            orderMapFP = null;
+        }
+
         final long leafFP = leafFilePointers.get(leaf);
         readBlock(leafFP);
 
@@ -408,15 +418,7 @@ public class BlockIndexReader
 
         if (cardinality <= 0) return null;
 
-        final Long orderMapFP;
-        if (leafToOrderMapFP.containsKey(leaf))
-        {
-            orderMapFP = leafToOrderMapFP.get(leaf);
-        }
-        else
-        {
-            orderMapFP = null;
-        }
+
 
         if (startIdx == -1) startIdx = this.leafSize;
 
