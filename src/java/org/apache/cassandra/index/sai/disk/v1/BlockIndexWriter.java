@@ -28,6 +28,7 @@ import java.util.TreeMap;
 
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeMultimap;
 import com.google.common.collect.TreeRangeSet;
 
 import com.carrotsearch.hppc.IntLongHashMap;
@@ -151,8 +152,17 @@ public class BlockIndexWriter
         public final IntLongHashMap nodeIDPostingsFP;
         public final RangeSet<Integer> multiBlockLeafOrdinalRanges;
         public final BitSet leafValuesSame;
+        public final TreeMultimap<Integer, Long> multiNodeIDToPostingsFP;
 
-        public BlockIndexMeta(long orderMapFP, long indexFP, long leafFilePointersFP, int numLeaves, long nodeIDToLeafOrdinalFP, IntLongHashMap nodeIDPostingsFP, RangeSet<Integer> multiBlockLeafOrdinalRanges, BitSet leafValuesSame)
+        public BlockIndexMeta(long orderMapFP,
+                              long indexFP,
+                              long leafFilePointersFP,
+                              int numLeaves,
+                              long nodeIDToLeafOrdinalFP,
+                              IntLongHashMap nodeIDPostingsFP,
+                              RangeSet<Integer> multiBlockLeafOrdinalRanges,
+                              BitSet leafValuesSame,
+                              TreeMultimap<Integer, Long> multiNodeIDToPostingsFP)
         {
             this.orderMapFP = orderMapFP;
             this.indexFP = indexFP;
@@ -162,6 +172,7 @@ public class BlockIndexWriter
             this.nodeIDPostingsFP = nodeIDPostingsFP;
             this.multiBlockLeafOrdinalRanges = multiBlockLeafOrdinalRanges;
             this.leafValuesSame = leafValuesSame;
+            this.multiNodeIDToPostingsFP = multiNodeIDToPostingsFP;
         }
     }
 
@@ -207,7 +218,7 @@ public class BlockIndexWriter
                     //System.out.println("termsIndexWriter write term="+prevMinValue.utf8ToString()+" startLeaf="+startLeaf+" endLeaf="+endLeaf);
                     long encodedLong = (((long)startLeaf) << 32) | (endLeaf & 0xffffffffL);
                     // TODO: when the start and end leaf's are the same encode a single int
-                    System.out.println("termsIndexWriter add minValue="+NumericUtils.sortableBytesToInt(prevMinValue.bytes, 0));
+                    //System.out.println("termsIndexWriter add minValue="+NumericUtils.sortableBytesToInt(prevMinValue.bytes, 0));
                     termsIndexWriter.add(fixedLength(prevMinValue), new Long(encodedLong));
                     lastTerm.clear();
                     lastTerm.append(prevMinValue);
@@ -246,7 +257,7 @@ public class BlockIndexWriter
                 {
                     assert minValue.compareTo(lastTerm.get()) > 0;
 
-                    System.out.println("termsIndexWriter last add minValue=" + NumericUtils.sortableBytesToInt(minValue.bytes, 0));
+                    //System.out.println("termsIndexWriter last add minValue=" + NumericUtils.sortableBytesToInt(minValue.bytes, 0));
                     termsIndexWriter.add(fixedLength(minValue), new Long(encodedLong));
                     lastTerm.clear();
                     lastTerm.append(minValue);
@@ -328,10 +339,15 @@ public class BlockIndexWriter
             leafPointerToNodeID.put(entry.getValue(), entry.getKey());
         }
 
+        TreeMap<Integer,Integer> leafToNodeID = new TreeMap<>();
+
         int ordinal = 0;
         for (Map.Entry<Long, Integer> entry : leafPointerToNodeID.entrySet())
         {
             nodeIDToLeafOrdinal.put(entry.getValue(), ordinal);
+
+            leafToNodeID.put(ordinal, entry.getValue());
+
             ordinal++;
         }
 
@@ -384,10 +400,13 @@ public class BlockIndexWriter
                                        nodeIDPostingsFP,
                                        leafBytesFPs.size(),
                                        nodeIDToLeafOrdinal,
-                                       this.multiBlockLeafRanges);
+                                       this.multiBlockLeafRanges,
+                                       leafToNodeID);
 
         final IndexOutput bigPostingsOut = directory.createOutput("bigpostings", IOContext.DEFAULT);
-        final long multiLevelPostingsFP = multiLevelPostingsWriter.finish(bigPostingsOut);
+        //final long multiLevelPostingsFP = multiLevelPostingsWriter.finish(bigPostingsOut);
+        final TreeMultimap<Integer, Long> nodeIDToPostingsFP = multiLevelPostingsWriter.finish(bigPostingsOut);
+
 
         leafPostingsInput.close();
         bigPostingsOut.close();
@@ -403,7 +422,8 @@ public class BlockIndexWriter
                                   nodeIDToLeafOrdinalFP,
                                   nodeIDPostingsFP,
                                   multiBlockLeafRanges,
-                                  leafValuesSame);
+                                  leafValuesSame,
+                                  nodeIDToPostingsFP);
     }
 
     public static int bytesDifference(BytesRef priorTerm, BytesRef currentTerm)
@@ -568,7 +588,7 @@ public class BlockIndexWriter
 
         assert minValue.equals(buffer.minValue);
 
-        System.out.println("   writeLeaf leaf=" + buffer.leaf + " minValue=" + NumericUtils.sortableBytesToInt(buffer.minValue.bytes, 0));
+        // System.out.println("   writeLeaf leaf=" + buffer.leaf + " minValue=" + NumericUtils.sortableBytesToInt(buffer.minValue.bytes, 0));
 
         this.leafBytesFPs.add((long) buffer.leaf);
 

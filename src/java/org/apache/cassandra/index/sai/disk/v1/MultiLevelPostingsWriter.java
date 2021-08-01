@@ -39,6 +39,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeMultimap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,13 +89,15 @@ public class MultiLevelPostingsWriter
     int numNonLeafPostings = 0;
     int numLeafPostings = 0;
     final RangeSet<Integer> multiBlockLeafRanges;
+    final TreeMap<Integer,Integer> leafToNodeID;
 
     public MultiLevelPostingsWriter(IndexInput leafPostingsInput,
                                     IndexWriterConfig config,
                                     IntLongHashMap nodeIDPostingsFP,
                                     int numLeaves,
                                     TreeMap<Integer,Integer> nodeIDToLeafOrdinal,
-                                    final RangeSet<Integer> multiBlockLeafRanges)
+                                    final RangeSet<Integer> multiBlockLeafRanges,
+                                    TreeMap<Integer,Integer> leafToNodeID)
     {
         this.leafPostingsInput = leafPostingsInput;
         this.config = config;
@@ -102,11 +105,12 @@ public class MultiLevelPostingsWriter
         this.numLeaves = numLeaves;
         this.nodeIDToLeafOrdinal = nodeIDToLeafOrdinal;
         this.multiBlockLeafRanges = multiBlockLeafRanges;
+        this.leafToNodeID = leafToNodeID;
     }
 
     @SuppressWarnings("resource")
     // TODO: possibly writing lower level leaf nodes twice?
-    public long finish(IndexOutput out) throws IOException
+    public final TreeMultimap<Integer, Long> finish(IndexOutput out) throws IOException
     {
         traverse(new BinaryTreeIndex(numLeaves),
                  new IntArrayList());
@@ -125,16 +129,23 @@ public class MultiLevelPostingsWriter
 
         final long startFP = out.getFilePointer();
         final Stopwatch flushTime = Stopwatch.createStarted();
-        final TreeMap<Integer, Long> nodeIDToPostingsFilePointer = new TreeMap<>();
-        for (int nodeID : Iterables.concat(internalNodeIDs, leafNodeIDs))
+        final TreeMultimap<Integer, Long> nodeIDToPostingsFP = TreeMultimap.create();
+        //for (int nodeID : Iterables.concat(internalNodeIDs, leafNodeIDs))
+        for (final int nodeID : internalNodeIDs)
         {
             Collection<Integer> leafNodeIDs = nodeToChildLeaves.get(nodeID);
 
-            final Integer leafOrdinal = nodeIDToLeafOrdinal.get(nodeID);
+            for (int n : leafNodeIDs)
+            {
+                assert n >= numLeaves;
+            }
 
-            assert leafOrdinal != null;
+            List<Integer> leafNodeIDsCopy = new ArrayList<>(leafNodeIDs);
 
-            final TreeMap<Integer,Integer> leafToNodeID;
+            assert nodeIDToLeafOrdinal.containsKey(nodeID);
+
+            int maxLeaf = -1;
+            int minLeaf = Integer.MAX_VALUE;
 
             if (leafNodeIDs.size() == 0)
             {
@@ -142,7 +153,6 @@ public class MultiLevelPostingsWriter
 
                 leafNodeIDs = Collections.singletonList(nodeID);
                 numLeafPostings++;
-                leafToNodeID = null;
             }
             else
             {
@@ -150,31 +160,48 @@ public class MultiLevelPostingsWriter
                 // if there are overlapping same value multi-block postings, add the multi-block postings
                 // file pointers, and remove the multi-block node ids from leafNodeIDs
                 // so the same value multi-block postings aren't added to the aggregated node posting list
-                leafToNodeID = new TreeMap<>();
                 for (final int leafNodeID : leafNodeIDs)
                 {
                     final int leaf = nodeIDToLeafOrdinal.get(leafNodeID);
-                    leafToNodeID.put(leaf, leafNodeID);
+                    maxLeaf = Math.max(leaf, maxLeaf);
+                    minLeaf = Math.min(leaf, minLeaf);
                 }
 
-                final int minLeaf = leafToNodeID.firstKey();
-                final int maxLeaf = leafToNodeID.lastKey();
-
                 // if there are multi-block ranges then remove their node ids from the ultimate posting list
+
+                assert minLeaf != Integer.MAX_VALUE;
+                assert maxLeaf != -1;
+
                 final Range<Integer> multiBlockMin = multiBlockLeafRanges.rangeContaining(minLeaf);
                 final Range<Integer> multiBlockMax = multiBlockLeafRanges.rangeContaining(maxLeaf);
+
+                System.out.println("minLeaf="+minLeaf+" multiBlockMin="+multiBlockMin);
+                System.out.println("maxLeaf="+maxLeaf+" multiBlockMax="+multiBlockMax);
 
                 if (multiBlockMin != null)
                 {
                     final int startLeaf = multiBlockMin.lowerEndpoint();
                     final int endLeaf = multiBlockMin.upperEndpoint();
 
+                    Integer leafNodeID = this.leafToNodeID.get(endLeaf);
+
+                    assert leafNodeID != null;
+
+                    assert nodeIDPostingsFP.containsKey(leafNodeID);
+
+                    long multiBlockPostingsFP = nodeIDPostingsFP.get(leafNodeID);
+
+                    nodeIDToPostingsFP.put(leafNodeID, multiBlockPostingsFP);
+
                     // remove leaf node's that are in the multi-block posting list
                     for (int leaf = startLeaf; leaf <= endLeaf; leaf++)
                     {
-                        Integer leafRemoved = leafToNodeID.remove(leaf);
-                        if (leafRemoved != null)
-                           System.out.println("multiBlockMin leafRemoved leaf="+leaf);
+                        assert this.multiBlockLeafRanges.contains(leaf);
+
+                        Integer toRemoveNodeID = this.leafToNodeID.get(leaf);
+                        assert toRemoveNodeID != null;
+                        boolean removed = leafNodeIDsCopy.remove(toRemoveNodeID);
+                        System.out.println("multiBlockMin removed="+removed+" leaf="+leaf+" toRemoveNodeID="+toRemoveNodeID);
                     }
                 }
 
@@ -183,28 +210,50 @@ public class MultiLevelPostingsWriter
                     final int startLeaf = multiBlockMax.lowerEndpoint();
                     final int endLeaf = multiBlockMax.upperEndpoint();
 
+                    Integer leafNodeID = this.leafToNodeID.get(endLeaf);
+
+                    assert nodeIDPostingsFP.containsKey(leafNodeID);
+
+                    long multiBlockPostingsFP = nodeIDPostingsFP.get(leafNodeID);
+
+                    nodeIDToPostingsFP.put(leafNodeID, multiBlockPostingsFP);
+
                     for (int leaf = startLeaf; leaf <= endLeaf; leaf++)
                     {
-                        Integer leafRemoved = leafToNodeID.remove(leaf);
-                        if (leafRemoved != null)
-                            System.out.println("multiBlockMax leafRemoved leaf="+leaf);
+                        assert this.multiBlockLeafRanges.contains(leaf);
+
+                        Integer toRemoveNodeID = this.leafToNodeID.get(leaf);
+                        assert toRemoveNodeID != null;
+                        boolean removed = leafNodeIDsCopy.remove(toRemoveNodeID);
+                        System.out.println("multiBlockMax removed="+removed+" leaf="+leaf+" toRemoveNodeID="+toRemoveNodeID);
                     }
                 }
+
+                System.out.println("leafNodeIDs="+leafNodeIDs);
+                System.out.println("leafNodeIDsCopy="+leafNodeIDsCopy);
 
                 numNonLeafPostings++;
             }
 
             final PriorityQueue<PostingList.PeekablePostingList> postingLists = new PriorityQueue<>(100, Comparator.comparingLong(PostingList.PeekablePostingList::peek));
 
-            Collection<Integer> reducedNodeIDs = leafNodeIDs;
-            if (leafToNodeID != null)
-            {
-                reducedNodeIDs = leafToNodeID.values();
-            }
+//            Collection<Integer> reducedNodeIDs = leafNodeIDs;
+//            if (mergeLeafToNodeID != null)
+//            {
+//                reducedNodeIDs = mergeLeafToNodeID.values();
+//            }
 
-            for (final Integer leafNodeID : reducedNodeIDs)
+//            for (long fp : multiBlockFPs)
+//            {
+//                final PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(leafPostingsInput, fp);
+//                final PostingsReader reader = new PostingsReader(leafPostingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
+//                postingLists.add(reader.peekable());
+//            }
+
+            //for (final Integer leafNodeID : leafNodeIDs)
+            for (final Integer leafNodeID : leafNodeIDsCopy)
             {
-                // assert nodeIDPostingsFP.containsKey(leafNodeID);
+                assert leafNodeID.intValue() >= numLeaves;
 
                 if (nodeIDPostingsFP.containsKey(leafNodeID))
                 {
@@ -215,28 +264,26 @@ public class MultiLevelPostingsWriter
                 }
             }
 
+            // TODO: get the start and end for the multi block postings
+
             if (postingLists.size() > 0)
             {
                 final PostingList mergedPostingList = MergePostingList.merge(postingLists);
-                final long postingFilePosition = postingsWriter.write(mergedPostingList);
+                long regularPostingsFP = postingsWriter.write(mergedPostingList);
                 // During compaction we could end up with an empty postings due to deletions.
                 // The writer will return a fp of -1 if no postings were written.
-                if (postingFilePosition >= 0)
+                if (regularPostingsFP >= 0)
                 {
-                    nodeIDToPostingsFilePointer.put(nodeID, postingFilePosition);
+                    nodeIDToPostingsFP.put(nodeID, regularPostingsFP * -1);
                 }
             }
         }
         flushTime.stop();
-//        logger.debug(components.logMessage("Flushed {} of posting lists for kd-tree nodes in {} ms."),
-//                     FBUtilities.prettyPrintMemory(out.getFilePointer() - startFP),
-//                     flushTime.elapsed(TimeUnit.MILLISECONDS));
-
 
         final long indexFilePointer = out.getFilePointer();
-        writeMap(nodeIDToPostingsFilePointer, out);
+        //writeMap(nodeIDToPostingsFP, out);
         postingsWriter.complete();
-        return indexFilePointer;
+        return nodeIDToPostingsFP;
     }
 
     private void onLeaf(int leafNodeID, IntArrayList pathToRoot)

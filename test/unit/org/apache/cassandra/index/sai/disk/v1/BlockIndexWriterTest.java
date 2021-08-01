@@ -207,7 +207,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
         try (IndexInput input = dir.openInput("file", IOContext.DEFAULT);
              IndexInput input2 = dir.openInput("file", IOContext.DEFAULT);
              IndexInput ordermapInput = dir.openInput("ordermap", IOContext.DEFAULT);
-             IndexInput postingsInput = dir.openInput("postings", IOContext.DEFAULT))
+             IndexInput postingsInput = dir.openInput("leafpostings", IOContext.DEFAULT))
         {
             FileHandle indexFile = comps.createFileHandle(comps.kdTree);
             BlockIndexReader reader = new BlockIndexReader(input,
@@ -215,16 +215,18 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
                                                            indexFile,
                                                            ordermapInput,
                                                            postingsInput,
+                                                           postingsInput,
                                                            meta);
 
-            PostingList postings = reader.traverse(ByteComparable.fixedLength("gggaaaddd".getBytes(StandardCharsets.UTF_8)),
+            PostingList postings = reader.traverse(ByteComparable.fixedLength("cc".getBytes(StandardCharsets.UTF_8)),
                                                    ByteComparable.fixedLength("zzzzz".getBytes(StandardCharsets.UTF_8)));
             while (true)
             {
                 final long rowID = postings.nextPosting();
                 if (rowID == PostingList.END_OF_STREAM) break;
-                System.out.println("rowid="+rowID);
+                System.out.println("rowid=" + rowID);
             }
+        }
 
             // maxNodeID,
 //            PostingList leafPostings = reader.filterFirstLeaf(minNodeID,
@@ -278,7 +280,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
 //                System.out.println("x="+x+" term=" + term.utf8ToString());
 //            }
 //            System.out.println("results="+results);
-        }
+       // }
     }
 
     @Test
@@ -380,7 +382,9 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
         try (IndexInput input = dir.openInput("file", IOContext.DEFAULT);
              IndexInput input2 = dir.openInput("file", IOContext.DEFAULT);
              IndexInput ordermapInput = dir.openInput("ordermap", IOContext.DEFAULT);
-             IndexInput postingsInput = dir.openInput("leafpostings", IOContext.DEFAULT))
+             IndexInput postingsInput = dir.openInput("leafpostings", IOContext.DEFAULT);
+             IndexInput bigpostingsInput = dir.openInput("bigpostings", IOContext.DEFAULT))
+        //
         {
             FileHandle indexFile = comps.createFileHandle(comps.kdTree);
             BlockIndexReader reader = new BlockIndexReader(input,
@@ -388,6 +392,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
                                                            indexFile,
                                                            ordermapInput,
                                                            postingsInput,
+                                                           bigpostingsInput,
                                                            meta);
 
             PostingList postings = reader.traverse(start, end);
