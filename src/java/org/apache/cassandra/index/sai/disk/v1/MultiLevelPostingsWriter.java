@@ -236,20 +236,7 @@ public class MultiLevelPostingsWriter
             }
 
             final PriorityQueue<PostingList.PeekablePostingList> postingLists = new PriorityQueue<>(100, Comparator.comparingLong(PostingList.PeekablePostingList::peek));
-
-//            Collection<Integer> reducedNodeIDs = leafNodeIDs;
-//            if (mergeLeafToNodeID != null)
-//            {
-//                reducedNodeIDs = mergeLeafToNodeID.values();
-//            }
-
-//            for (long fp : multiBlockFPs)
-//            {
-//                final PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(leafPostingsInput, fp);
-//                final PostingsReader reader = new PostingsReader(leafPostingsInput, summary, QueryEventListener.PostingListEventListener.NO_OP);
-//                postingLists.add(reader.peekable());
-//            }
-
+            
             //for (final Integer leafNodeID : leafNodeIDs)
             for (final Integer leafNodeID : leafNodeIDsCopy)
             {

@@ -55,7 +55,7 @@ import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZ
 
 public class BlockIndexWriter
 {
-    public static final int LEAF_SIZE = 2;
+    public static final int LEAF_SIZE = 3;
     // TODO: when the previous leaf min value is the same,
     //       write the leaf file pointer to the first occurence of the min value
     private final LongArrayList leafBytesFPs = new LongArrayList();

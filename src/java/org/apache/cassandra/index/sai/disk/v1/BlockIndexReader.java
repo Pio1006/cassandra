@@ -190,7 +190,6 @@ public class BlockIndexReader
         BytesRef startBytes = new BytesRef(ByteSourceInverse.readBytes(start.asComparableBytes(ByteComparable.Version.OSS41)));
         BytesRef endBytes = new BytesRef(ByteSourceInverse.readBytes(end.asComparableBytes(ByteComparable.Version.OSS41)));
 
-        //List<Pair<Integer, Integer>> leafNodeIDToLeafOrd = new ArrayList<>();
         List<NodeIDLeafFP> leafNodeIDToLeafOrd = new ArrayList<>();
 
         for (int nodeID : nodeIDs)
@@ -227,6 +226,9 @@ public class BlockIndexReader
         int minLeafOrd = leafNodeIDToLeafOrd.get(0).leaf;
         int maxNodeID = leafNodeIDToLeafOrd.get(leafNodeIDToLeafOrd.size() - 1).nodeID;
         int maxLeafOrd = leafNodeIDToLeafOrd.get(leafNodeIDToLeafOrd.size() - 1).leaf;
+
+        // TODO: the leafNodeIDToLeafOrd list may have a big postings list at the end
+        //       since leafNodeIDToLeafOrd is sorted by leaf and there may be the same leaf
 
         System.out.println("nodeIDToLeafOrd="+leafNodeIDToLeafOrd);
 
