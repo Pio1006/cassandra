@@ -37,10 +37,12 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexBuilder;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
@@ -307,7 +309,7 @@ public class NodeStartupTest extends SAITester
     private boolean isColumnIndexComplete() throws Exception
     {
         ColumnFamilyStore cfs = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
-        return cfs.getLiveSSTables().stream().allMatch(sstable -> VersionedIndex.create(sstable.descriptor, indexName).isColumnIndexComplete());
+        return cfs.getLiveSSTables().stream().allMatch(sstable -> SSTableContext.create(sstable).isColumnIndexComplete(indexName));
     }
 
     private void setState(IndexStateOnRestart state)

@@ -25,13 +25,15 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.disk.v1.Segment;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableContext;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.LongArray;
-import org.apache.cassandra.index.sai.utils.PerIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 
@@ -45,16 +47,19 @@ public abstract class IndexSearcher implements Closeable
 {
     private final LongArray.Factory rowIdToTokenFactory;
     private final LongArray.Factory rowIdToOffsetFactory;
-    private final SSTableContext.KeyFetcher keyFetcher;
+    private final V1SSTableContext.KeyFetcher keyFetcher;
     final PerIndexFiles indexFiles;
 
     final SegmentMetadata metadata;
 
     IndexSearcher(Segment segment)
     {
-        this.rowIdToTokenFactory = segment.segmentRowIdToTokenFactory;
-        this.rowIdToOffsetFactory = segment.segmentRowIdToOffsetFactory;
-        this.keyFetcher = segment.keyFetcher;
+//        this.rowIdToTokenFactory = segment.segmentRowIdToTokenFactory;
+//        this.rowIdToOffsetFactory = segment.segmentRowIdToOffsetFactory;
+//        this.keyFetcher = segment.keyFetcher;
+        this.rowIdToTokenFactory = null;
+        this.rowIdToOffsetFactory = null;
+        this.keyFetcher = null;
         this.indexFiles = segment.indexFiles;
         this.metadata = segment.metadata;
     }

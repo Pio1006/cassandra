@@ -527,15 +527,11 @@ public class ColumnContext
                 continue;
             }
 
-            // TODO: does the column name need to be encoded since it's being included in a filename?
-//            final IndexComponents components = IndexComponents.create(getIndexName(), context.sstable());
-
             try
             {
                 if (validate)
                 {
-                    //TODO Fix
-//                    components.validatePerColumnComponents(isLiteral());
+                    context.validatePerColumnComponents(getIndexName(), isLiteral());
                 }
 
                 SSTableIndex index = new SSTableIndex(context, this);

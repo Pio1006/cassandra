@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.sai.disk.v1.Segment;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertFalse;

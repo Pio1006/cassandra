@@ -32,17 +32,18 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.SSTableContext;
-import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
-import org.apache.cassandra.index.sai.disk.v1.InvertedIndexWriter;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.writers.InvertedIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.Segment;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableContext;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.index.sai.utils.LongArrays;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
-import org.apache.cassandra.index.sai.utils.PerIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.StorageService;
@@ -57,7 +58,7 @@ import static org.hamcrest.Matchers.is;
 
 public class InvertedIndexSearcherTest extends NdiRandomizedTest
 {
-    private static final SSTableContext.KeyFetcher KEY_FETCHER = new SSTableContext.KeyFetcher() {
+    private static final V1SSTableContext.KeyFetcher KEY_FETCHER = new V1SSTableContext.KeyFetcher() {
         @Override
         public DecoratedKey apply(RandomAccessReader reader, long keyOffset)
         {
@@ -164,10 +165,11 @@ public class InvertedIndexSearcherTest extends NdiRandomizedTest
     private IndexSearcher buildIndexAndOpenSearcher(int terms, int postings, List<Pair<ByteComparable, IntArrayList>> termsEnum) throws IOException
     {
         final int size = terms * postings;
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final IndexDescriptor indexDescriptor = newIndexDescriptor();
+        final String index = newIndex();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, false))
+        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, index, false))
         {
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
@@ -182,7 +184,7 @@ public class InvertedIndexSearcherTest extends NdiRandomizedTest
                                                                     wrap(termsEnum.get(terms - 1).left),
                                                                     indexMetas);
 
-        try (PerIndexFiles indexFiles = new PerIndexFiles(versionedIndex, true))
+        try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, SAITester.createColumnContext("test", UTF8Type.instance), true))
         {
             final LongArray.Factory factory = () -> LongArrays.identity().build();
             Segment segment = new Segment(factory, factory, KEY_FETCHER, indexFiles, segmentMetadata, UTF8Type.instance);

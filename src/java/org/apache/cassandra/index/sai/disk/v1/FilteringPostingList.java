@@ -36,7 +36,7 @@ public class FilteringPostingList implements PostingList
     private final int cardinality;
     private int position = 0;
 
-    FilteringPostingList(FixedBitSet filter, OrdinalPostingList delegate)
+    public FilteringPostingList(FixedBitSet filter, OrdinalPostingList delegate)
     {
         cardinality = filter.cardinality();
 

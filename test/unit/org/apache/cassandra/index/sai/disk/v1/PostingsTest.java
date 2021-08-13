@@ -28,6 +28,8 @@ import org.junit.rules.ExpectedException;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.v1.readers.PostingsReader;
+import org.apache.cassandra.index.sai.disk.v1.writers.PostingsWriter;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.ArrayPostingList;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
@@ -43,7 +45,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testSingleBlockPostingList() throws Exception
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int blockSize = 1 << between(3, 8);
         final ArrayPostingList expectedPostingList = new ArrayPostingList(new int[]{ 10, 20, 30, 40, 50, 60 });
 
@@ -96,7 +98,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testMultiBlockPostingList() throws Exception
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int numPostingLists = 1 << between(1, 5);
         final int blockSize = 1 << between(5, 10);
         final int numPostings = between(1 << 11, 1 << 15);
@@ -163,7 +165,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testAdvance() throws Exception
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int blockSize = 4; // 4 postings per FoR block
         final int maxSegmentRowID = 30;
         final int[] postings = IntStream.range(0, maxSegmentRowID).toArray(); // 30 postings = 7 FoR blocks + 1 VLong block
@@ -204,7 +206,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testAdvanceOnRandomizedData() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int blockSize = 4;
         final int numPostings = nextInt(64, 64_000);
         final int[] postings = randomPostings(numPostings);
@@ -238,7 +240,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testNullPostingList() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         try (PostingsWriter writer = new PostingsWriter(versionedIndex, false))
         {
             expectedException.expect(IllegalArgumentException.class);
@@ -250,7 +252,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testEmptyPostingList() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         try (PostingsWriter writer = new PostingsWriter(versionedIndex, false))
         {
             expectedException.expect(IllegalArgumentException.class);
@@ -261,7 +263,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testNonAscendingPostingList() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         try (PostingsWriter writer = new PostingsWriter(versionedIndex, false))
         {
             expectedException.expect(IllegalArgumentException.class);

@@ -29,6 +29,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.v1.readers.TrieTermsDictionaryReader;
+import org.apache.cassandra.index.sai.disk.v1.writers.TrieTermsDictionaryWriter;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.io.util.FileHandle;
@@ -49,7 +51,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
 
     private void doTestExactMatch() throws Exception
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
 
         long fp;
         try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(versionedIndex, false))
@@ -77,7 +79,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
     @Test
     public void testTermEnum() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
@@ -111,7 +113,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
     @Test
     public void testMinMaxTerm() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;

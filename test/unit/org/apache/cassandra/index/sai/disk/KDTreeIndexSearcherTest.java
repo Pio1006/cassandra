@@ -57,14 +57,14 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
 
     private void doTestRangeQueriesAgainstInt32Index() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildInt32Searcher(newVersionedIndex(), 0, 10);
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildInt32Searcher(newIndexDescriptor(), 0, 10);
         testRangeQueries(indexSearcher, Int32Type.instance, Int32Type.instance, Integer::valueOf);
     }
 
     @Test
     public void testEqQueriesAgainstInt32Index() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildInt32Searcher(newVersionedIndex(),
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildInt32Searcher(newIndexDescriptor(),
                                                                             EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
         testEqQueries(indexSearcher, Int32Type.instance, Int32Type.instance, Integer::valueOf);
     }
@@ -72,14 +72,14 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
     @Test
     public void testRangeQueriesAgainstLongIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildLongSearcher(newVersionedIndex(), 0, 10);
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildLongSearcher(newIndexDescriptor(), 0, 10);
         testRangeQueries(indexSearcher, LongType.instance, Int32Type.instance, Long::valueOf);
     }
 
     @Test
     public void testEqQueriesAgainstLongIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildLongSearcher(newVersionedIndex(),
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildLongSearcher(newIndexDescriptor(),
                                                                            EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
         testEqQueries(indexSearcher, LongType.instance, Int32Type.instance, Long::valueOf);
     }
@@ -87,14 +87,14 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
     @Test
     public void testRangeQueriesAgainstShortIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newVersionedIndex(), (short) 0, (short) 10);
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newIndexDescriptor(), (short) 0, (short) 10);
         testRangeQueries(indexSearcher, ShortType.instance, Int32Type.instance, Function.identity());
     }
 
     @Test
     public void testEqQueriesAgainstShortIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newVersionedIndex(),
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newIndexDescriptor(),
                                                                             EQ_TEST_LOWER_BOUND_INCLUSIVE, EQ_TEST_UPPER_BOUND_EXCLUSIVE);
         testEqQueries(indexSearcher, ShortType.instance, Int32Type.instance, Function.identity());
     }
@@ -102,7 +102,7 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
     @Test
     public void testRangeQueriesAgainstDecimalIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildDecimalSearcher(newVersionedIndex(),
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildDecimalSearcher(newIndexDescriptor(),
                                                                               BigDecimal.ZERO, BigDecimal.valueOf(10L));
         testRangeQueries(indexSearcher, DecimalType.instance, DecimalType.instance, BigDecimal::valueOf,
                          getLongsOnInterval(21L, 70L));
@@ -116,7 +116,7 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
     @Test
     public void testEqQueriesAgainstDecimalIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildDecimalSearcher(newVersionedIndex(),
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildDecimalSearcher(newIndexDescriptor(),
                                                                               BigDecimal.valueOf(EQ_TEST_LOWER_BOUND_INCLUSIVE), BigDecimal.valueOf(EQ_TEST_UPPER_BOUND_EXCLUSIVE));
         testEqQueries(indexSearcher, DecimalType.instance, DecimalType.instance, BigDecimal::valueOf);
     }
@@ -125,7 +125,7 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
     @Test
     public void testEqQueriesAgainstBigIntegerIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildBigIntegerSearcher(newVersionedIndex(),
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildBigIntegerSearcher(newIndexDescriptor(),
                                                                                  BigInteger.valueOf(EQ_TEST_LOWER_BOUND_INCLUSIVE), BigInteger.valueOf(EQ_TEST_UPPER_BOUND_EXCLUSIVE));
         testEqQueries(indexSearcher, IntegerType.instance, IntegerType.instance, BigInteger::valueOf);
     }
@@ -133,7 +133,7 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
     @Test
     public void testRangeQueriesAgainstBigIntegerIndex() throws Exception
     {
-        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildBigIntegerSearcher(newVersionedIndex(),
+        IndexSearcher indexSearcher = KDTreeIndexBuilder.buildBigIntegerSearcher(newIndexDescriptor(),
                                                                                  BigInteger.ZERO, BigInteger.valueOf(10L));
         testRangeQueries(indexSearcher, IntegerType.instance, IntegerType.instance, BigInteger::valueOf);
     }
@@ -142,7 +142,7 @@ public class KDTreeIndexSearcherTest extends NdiRandomizedTest
     @Test
     public void testUnsupportedOperator() throws Exception
     {
-        final IndexSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newVersionedIndex(), (short) 0, (short) 3);
+        final IndexSearcher indexSearcher = KDTreeIndexBuilder.buildShortSearcher(newIndexDescriptor(), (short) 0, (short) 3);
         try
         {
             indexSearcher.search(new Expression(SAITester.createColumnContext("meh", ShortType.instance))

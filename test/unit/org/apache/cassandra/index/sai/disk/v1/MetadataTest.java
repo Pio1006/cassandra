@@ -48,7 +48,7 @@ public class MetadataTest extends NdiRandomizedTest
     public void shouldReadWrittenMetadata() throws Exception
     {
         final Map<String, byte[]> data = new HashMap<>();
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         try (MetadataWriter writer = new MetadataWriter(IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.META)))
         {
             int num = nextInt(1, 50);
@@ -82,7 +82,7 @@ public class MetadataTest extends NdiRandomizedTest
     @Test
     public void shouldFailWhenFileHasNoHeader() throws IOException
     {
-        VersionedIndex versionedIndex = newVersionedIndex();
+        VersionedIndex versionedIndex = newIndexDescriptor();
         try (IndexOutputWriter out = IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.META))
         {
             final byte[] bytes = nextBytes(13, 29);
@@ -97,7 +97,7 @@ public class MetadataTest extends NdiRandomizedTest
     @Test
     public void shouldFailCrcCheckWhenFileIsTruncated() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final IndexOutputWriter output = writeRandomBytes(versionedIndex);
 
         final File indexFile = new File(output.getPath());
@@ -122,7 +122,7 @@ public class MetadataTest extends NdiRandomizedTest
     @Test
     public void shouldFailCrcCheckWhenFileIsCorrupted() throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         final IndexOutputWriter output = writeRandomBytes(versionedIndex);
 
         final File indexFile = new File(output.getPath());

@@ -28,7 +28,7 @@ import java.util.Map;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.SequentialWriterOption;
@@ -63,9 +63,9 @@ public class TrackingIndexFileUtils extends IndexFileUtils
     }
 
     @Override
-    public IndexInput openBlockingInput(VersionedIndex versionedIndex, IndexComponent.Type type)
+    public IndexInput openBlockingInput(IndexDescriptor indexDescriptor, IndexComponent.Type type)
     {
-        TrackingIndexInput input = new TrackingIndexInput(super.openBlockingInput(versionedIndex, type));
+        TrackingIndexInput input = new TrackingIndexInput(super.openBlockingInput(indexDescriptor, type));
         openInputs.put(input, Throwables.getStackTraceAsString(new RuntimeException("Blocking input created")));
         return input;
 

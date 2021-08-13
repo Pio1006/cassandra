@@ -27,6 +27,7 @@ import com.google.common.collect.Iterators;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.Token;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableContext;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.io.util.RandomAccessReader;
 
@@ -38,7 +39,7 @@ public class OnDiskKeyProducer
 {
     public static final long NO_OFFSET = -1;
 
-    private final SSTableContext.KeyFetcher keyFetcher;
+    private final V1SSTableContext.KeyFetcher keyFetcher;
     private final RandomAccessReader reader;
     private final LongArray segmentRowIdToOffset;
 
@@ -46,7 +47,7 @@ public class OnDiskKeyProducer
 
     private long lastOffset = NO_OFFSET;
 
-    public OnDiskKeyProducer(SSTableContext.KeyFetcher keyFetcher, RandomAccessReader reader, LongArray segmentRowIdToOffset, long maxPartitionOffset)
+    public OnDiskKeyProducer(V1SSTableContext.KeyFetcher keyFetcher, RandomAccessReader reader, LongArray segmentRowIdToOffset, long maxPartitionOffset)
     {
         this.keyFetcher = keyFetcher;
         this.reader = reader;

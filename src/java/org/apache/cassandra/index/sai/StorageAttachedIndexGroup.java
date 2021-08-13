@@ -46,7 +46,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.TableStateMetrics;
@@ -208,7 +208,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     {
         try
         {
-            return new StorageAttachedIndexWriter(descriptor, indices, tracker, tableMetadata.params.compression);
+            return new StorageAttachedIndexWriter(IndexDescriptor.latest(descriptor), indices, tracker, tableMetadata.params.compression);
         }
         catch (Throwable t)
         {
@@ -282,7 +282,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     void deletePerSSTableFiles(Collection<SSTableReader> sstables)
     {
         contextManager.release(sstables);
-        sstables.forEach(sstableReader -> VersionedIndex.create(sstableReader.descriptor).deletePerSSTableIndexComponents());
+        sstables.forEach(sstableReader -> IndexDescriptor.forSSTable(sstableReader.descriptor).deletePerSSTableIndexComponents());
     }
 
     void dropIndexSSTables(Collection<SSTableReader> ss, StorageAttachedIndex index)
@@ -314,7 +314,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         if (!results.right.isEmpty())
         {
             results.right.forEach(sstable -> {
-                VersionedIndex.create(sstable.descriptor).deletePerSSTableIndexComponents();
+                IndexDescriptor.forSSTable(sstable.descriptor).deletePerSSTableIndexComponents();
                 // Column indexes are invalid if their SSTable-level components are corrupted so delete
                 // their associated index files and mark them non-queryable.
                 indices.forEach(index -> {

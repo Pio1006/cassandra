@@ -25,7 +25,10 @@ import org.junit.Test;
 
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.readers.BlockPackedReader;
+import org.apache.cassandra.index.sai.disk.v1.readers.MonotonicBlockPackedReader;
+import org.apache.cassandra.index.sai.disk.v1.writers.NumericValuesWriter;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
@@ -60,12 +63,12 @@ public class NumericValuesTest extends NdiRandomizedTest
     private void testRepeatedNumericValues(boolean monotonic) throws Exception
     {
         int length = 64_000;
-        final VersionedIndex versionedIndex = newVersionedIndex();
-        writeTokens(monotonic, versionedIndex, new long[length], prev -> 1000L);
+        final IndexDescriptor indexDescriptor = newIndexDescriptor();
+        writeTokens(monotonic, indexDescriptor, new long[length], prev -> 1000L);
 
-        final MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
+        final MetadataSource source = MetadataSource.load(indexDescriptor.openInput(IndexComponent.GROUP_META));
 
-        try (FileHandle fileHandle = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TOKEN_VALUES);
+        try (FileHandle fileHandle = indexDescriptor.createFileHandle(IndexComponent.TOKEN_VALUES, false);
              LongArray reader = monotonic ? new MonotonicBlockPackedReader(fileHandle, IndexComponent.TOKEN_VALUES, source).open()
                                           : new BlockPackedReader(fileHandle, IndexComponent.TOKEN_VALUES, source).open())
         {
@@ -86,7 +89,7 @@ public class NumericValuesTest extends NdiRandomizedTest
     public void testTokenFind() throws Exception
     {
         final long[] array = new long[64_000];
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         writeTokens(false, versionedIndex, array, prev -> prev + nextInt(2, 100));
 
         final MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
@@ -122,7 +125,7 @@ public class NumericValuesTest extends NdiRandomizedTest
     private void testRepeatedNumericValuesFindTokenRowID() throws Exception
     {
         int length = 64_000;
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         writeTokens(false, versionedIndex, new long[length], prev -> 1000L);
         final MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
 
@@ -141,7 +144,7 @@ public class NumericValuesTest extends NdiRandomizedTest
     @Test
     public void testMultiSegmentFindTokenRowId() throws Exception
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         int length = 64_000;
         long[] array = new long[length];
         writeTokens(false, versionedIndex, array, prev -> prev + nextInt(1, 100));
@@ -178,7 +181,7 @@ public class NumericValuesTest extends NdiRandomizedTest
     private void doTest(boolean monotonic) throws Exception
     {
         final long[] array = new long[64_000];
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         writeTokens(monotonic, versionedIndex, array, prev -> monotonic ? prev + nextInt(100) : nextInt(100));
 
         final MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
@@ -196,13 +199,13 @@ public class NumericValuesTest extends NdiRandomizedTest
         }
     }
 
-    private void writeTokens(boolean monotonic, VersionedIndex versionedIndex, long[] array, LongFunction<Long> generator) throws Exception
+    private void writeTokens(boolean monotonic, IndexDescriptor indexDescriptor, long[] array, LongFunction<Long> generator) throws Exception
     {
         final int blockSize = 1 << nextInt(8, 15);
 
         long current = 0;
-        try (MetadataWriter metadataWriter = new MetadataWriter(IndexFileUtils.instance.createOutput(versionedIndex, IndexComponent.Type.META));
-             final NumericValuesWriter numericWriter = new NumericValuesWriter(versionedIndex,
+        try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.createOutput(IndexComponent.GROUP_META, false, false));
+             final NumericValuesWriter numericWriter = new NumericValuesWriter(indexDescriptor,
                                                                                IndexComponent.TOKEN_VALUES,
                                                                                metadataWriter,
                                                                                monotonic,

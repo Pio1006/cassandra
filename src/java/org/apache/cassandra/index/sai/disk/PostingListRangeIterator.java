@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.Token;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableContext;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.LongArray;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -60,7 +61,7 @@ public class PostingListRangeIterator extends RangeIterator
     private final SSTableQueryContext queryContext;
 
     private final PostingList postingList;
-    private final SSTableContext.KeyFetcher keyFetcher;
+    private final V1SSTableContext.KeyFetcher keyFetcher;
     private final IndexSearcher.SearcherContext context;
     private final LongArray segmentRowIdToToken;
     private final LongArray segmentRowIdToOffset;
@@ -78,7 +79,7 @@ public class PostingListRangeIterator extends RangeIterator
      * immediately so the posting list size can be used.
      */
     public PostingListRangeIterator(IndexSearcher.SearcherContext context,
-                                    SSTableContext.KeyFetcher keyFetcher)
+                                    V1SSTableContext.KeyFetcher keyFetcher)
     {
         super(context.minToken(), context.maxToken(), context.count());
 

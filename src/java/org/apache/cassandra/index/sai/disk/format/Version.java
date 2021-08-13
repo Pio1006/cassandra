@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.index.sai.disk.format;
 
+import com.google.common.base.Objects;
+
+import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
+
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
@@ -26,24 +30,42 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class Version
 {
     // 6.8 formats
-    public static final Version AA = new Version('a', 'a');
+    public static final Version AA = new Version("aa", V1OnDiskFormat.instance);
     // Stargazer
-    public static final Version BA = new Version('b', 'a');
+    public static final Version BA = new Version("ba", V1OnDiskFormat.instance);
 
     public static final Version EARLIEST = AA;
     public static final Version LATEST = BA;
 
     private final String version;
+    private final OnDiskFormat onDiskFormat;
 
-    public Version(char major, char minor)
+    private Version(String version, OnDiskFormat onDiskFormat)
     {
-        this.version = major + "" + minor;
+        this.version = version;
+        this.onDiskFormat = onDiskFormat;
     }
 
     public static Version parse(String input)
     {
         checkArgument(input.length() == 2);
-        return new Version(input.charAt(0), input.charAt(1));
+        checkArgument(input.equals(AA.version) || input.equals(BA.version));
+        return input.equals(AA.version) ? AA : BA;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(version);
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Version other = (Version)o;
+        return Objects.equal(version, other.version);
     }
 
     @Override
@@ -55,5 +77,10 @@ public class Version
     public boolean onOrAfter(Version other)
     {
         return version.compareTo(other.version) >= 0;
+    }
+
+    public OnDiskFormat onDiskFormat()
+    {
+        return onDiskFormat;
     }
 }

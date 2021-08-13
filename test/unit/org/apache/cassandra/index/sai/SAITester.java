@@ -279,7 +279,7 @@ public class SAITester extends CQLTester
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            VersionedIndex versionedIndex = VersionedIndex.create(sstable.descriptor, context.getIndexName());
+            VersionedIndex versionedIndex = VersionedIndex.create(sstable.descriptor);
             if (!versionedIndex.validatePerSSTableComponentsChecksum() || !versionedIndex.validatePerColumnComponentsChecksum())
                 return false;
         }

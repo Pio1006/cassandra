@@ -33,9 +33,10 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
-import org.apache.cassandra.index.sai.disk.v1.BKDReader;
-import org.apache.cassandra.index.sai.disk.v1.BKDTreeRamBuffer;
-import org.apache.cassandra.index.sai.disk.v1.NumericIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.readers.BKDReader;
+import org.apache.cassandra.index.sai.disk.v1.writers.BKDTreeRamBuffer;
+import org.apache.cassandra.index.sai.disk.v1.writers.NumericIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileHandle;
@@ -193,7 +194,7 @@ public class KDTreeSegmentMergerTest extends SAITester
 
         MergeOneDimPointValues merger = new MergeOneDimPointValues(segmentIterators, Integer.BYTES);
 
-        VersionedIndex versionedIndex = VersionedIndex.create(new Descriptor(temporaryFolder.newFolder(), "test", "test", 20), "test");
+        VersionedIndex versionedIndex = VersionedIndex.create(new Descriptor(temporaryFolder.newFolder(), "test", "test", 20));
 
         try (NumericIndexWriter indexWriter = new NumericIndexWriter(versionedIndex, Integer.BYTES, maxSegmentRowId, totalRows, IndexWriterConfig.defaultConfig("test"), false))
         {
@@ -230,7 +231,7 @@ public class KDTreeSegmentMergerTest extends SAITester
 
     private BKDReader createReader(BKDTreeRamBuffer buffer, int maxSegmentRowId, int generation) throws Throwable
     {
-        VersionedIndex versionedIndex = VersionedIndex.create(new Descriptor(temporaryFolder.newFolder(), "test", "test", generation), "test");
+        VersionedIndex versionedIndex = VersionedIndex.create(new Descriptor(temporaryFolder.newFolder(), "test", "test", generation));
 
         final NumericIndexWriter writer = new NumericIndexWriter(versionedIndex, Integer.BYTES, maxSegmentRowId, buffer.numRows(), IndexWriterConfig.defaultConfig("test"), false);
 

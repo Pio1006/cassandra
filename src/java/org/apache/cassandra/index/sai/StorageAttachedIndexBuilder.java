@@ -49,7 +49,7 @@ import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
@@ -156,7 +156,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
             final CompressionParams compressionParams = CryptoUtils.getCompressionParams(sstable);
 
-            indexWriter = new StorageAttachedIndexWriter(sstable.descriptor, indexes, txn, perColumnOnly, compressionParams);
+            indexWriter = new StorageAttachedIndexWriter(IndexDescriptor.latest(sstable.descriptor), indexes, txn, perColumnOnly, compressionParams);
 
             long previousKeyPosition = 0;
             indexWriter.begin();
@@ -279,9 +279,9 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     private CountDownLatch shouldWriteTokenOffsetFiles(SSTableReader sstable)
     {
         // if per-table files are incomplete or checksum failed during full rebuild.
-        VersionedIndex versionedIndex = VersionedIndex.create(sstable.descriptor);
-        if (!versionedIndex.isGroupIndexComplete() ||
-            (isFullRebuild && !versionedIndex.validatePerSSTableComponentsChecksum()))
+        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+        if (!indexDescriptor.isGroupIndexComplete() ||
+            (isFullRebuild && !indexDescriptor.validatePerSSTableComponentsChecksum()))
         {
             CountDownLatch latch = new CountDownLatch(1);
             if (inProgress.putIfAbsent(sstable, latch) == null)

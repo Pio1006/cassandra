@@ -18,7 +18,6 @@
 package org.apache.cassandra.index.sai.virtual;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,8 +35,8 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.disk.SegmentBuilder;
-import org.apache.cassandra.index.sai.disk.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -204,7 +203,7 @@ public class SegmentsSystemViewTest extends SAITester
             {
                 SSTableReader sstable = sstableIndex.getSSTable();
 
-                VersionedIndex versionedIndex = VersionedIndex.create(sstable.descriptor, sstableIndex.getColumnContext().getIndexName());
+                VersionedIndex versionedIndex = VersionedIndex.create(sstable.descriptor);
 
                 if (sstableIndex.getColumnContext().isLiteral())
                 {

@@ -24,7 +24,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.v1.NumericIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.writers.NumericIndexWriter;
 
 import static org.junit.Assert.assertEquals;
 

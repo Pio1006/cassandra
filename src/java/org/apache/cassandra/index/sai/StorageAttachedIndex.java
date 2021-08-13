@@ -42,6 +42,7 @@ import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -88,9 +89,9 @@ import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
 import org.apache.cassandra.index.sai.disk.ColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
-import org.apache.cassandra.index.sai.disk.MemtableIndexWriter;
-import org.apache.cassandra.index.sai.disk.SSTableIndexWriter;
-import org.apache.cassandra.index.sai.disk.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.v1.writers.MemtableIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -464,6 +465,16 @@ public class StorageAttachedIndex implements Index
         return this::startPreJoinTask;
     }
 
+    public boolean isInitBuildStarted()
+    {
+        return initBuildStarted;
+    }
+
+    public BooleanSupplier isIndexValid()
+    {
+        return () -> valid;
+    }
+
     private Future<?> startPreJoinTask()
     {
         try
@@ -657,23 +668,6 @@ public class StorageAttachedIndex implements Index
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker)
     {
         throw new UnsupportedOperationException("Storage-attached index flush observers should never be created directly.");
-    }
-
-    public ColumnIndexWriter newIndexWriter(Descriptor descriptor,
-                                            LifecycleNewTracker tracker,
-                                            RowMapping rowMapping,
-                                            CompressionParams compressionParams)
-    {
-        // If we're not flushing or we haven't yet started the initialization build, flush from SSTable contents.
-        if (tracker.opType() != OperationType.FLUSH || !initBuildStarted)
-        {
-            NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
-            logger.info(context.logMessage("Starting a compaction index build. Global segment memory usage: {}"), prettyPrintMemory(limiter.currentBytesUsed()));
-
-            return new SSTableIndexWriter(descriptor, context, limiter, () -> valid, compressionParams);
-        }
-
-        return new MemtableIndexWriter(context.getPendingMemtableIndex(tracker), descriptor, context, rowMapping, compressionParams);
     }
 
     @Override

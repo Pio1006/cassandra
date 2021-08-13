@@ -23,7 +23,7 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.index.sai.disk.v1.BKDReader;
+import org.apache.cassandra.index.sai.disk.v1.readers.BKDReader;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.bkd.BKDWriter;

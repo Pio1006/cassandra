@@ -107,7 +107,7 @@ public class FailureTest extends SAITester
 
         // We need to reference SSTableContext first or the failure injection fails
         // because byteman can't find the class.
-        SSTableContext.openFilesPerSSTable();
+        SSTableContext.class.getName();
 
         Injection ssTableContextCreationFailure = newFailureOnEntry("context_failure_on_creation", SSTableContext.class, "create", RuntimeException.class);
         Injections.inject(ssTableContextCreationFailure);

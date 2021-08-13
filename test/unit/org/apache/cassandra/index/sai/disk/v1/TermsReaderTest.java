@@ -26,10 +26,11 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PostingList;
-import org.apache.cassandra.index.sai.disk.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.readers.TermsReader;
+import org.apache.cassandra.index.sai.disk.v1.writers.InvertedIndexWriter;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
@@ -64,17 +65,18 @@ public class TermsReaderTest extends NdiRandomizedTest
     private void doTestTermsIteration() throws IOException
     {
         final int terms = 70, postings = 2;
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final IndexDescriptor indexDescriptor = newIndexDescriptor();
+        final String index = newIndex();
         final List<Pair<ByteComparable, IntArrayList>> termsEnum = buildTermsEnum(terms, postings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, false))
+        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, index, false))
         {
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
-        FileHandle postingLists = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+        FileHandle termsData = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index), false);
+        FileHandle postingLists = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index), false);
 
         long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 
@@ -95,17 +97,18 @@ public class TermsReaderTest extends NdiRandomizedTest
 
     private void testTermQueries(int numTerms, int numPostings) throws IOException
     {
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final IndexDescriptor indexDescriptor = newIndexDescriptor();
+        final String index = newIndex();
         final List<Pair<ByteComparable, IntArrayList>> termsEnum = buildTermsEnum(numTerms, numPostings);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (InvertedIndexWriter writer = new InvertedIndexWriter(versionedIndex, false))
+        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, index, false))
         {
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
-        FileHandle postingLists = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+        FileHandle termsData = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index), false);
+        FileHandle postingLists = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index), false);
 
         long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 

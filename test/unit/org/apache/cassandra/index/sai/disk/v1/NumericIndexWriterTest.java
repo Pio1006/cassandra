@@ -29,10 +29,12 @@ import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.MutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.PostingList;
-import org.apache.cassandra.index.sai.disk.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.v1.readers.BKDReader;
+import org.apache.cassandra.index.sai.disk.v1.writers.BKDTreeRamBuffer;
+import org.apache.cassandra.index.sai.disk.v1.writers.NumericIndexWriter;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.utils.AbstractIterator;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
@@ -69,7 +71,7 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
 
         final MutableOneDimPointValues pointValues = ramBuffer.asPointValues();
 
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
         int docCount = pointValues.getDocCount();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
@@ -124,7 +126,7 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
         final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues
                 .fromTermEnum(termEnum, Int32Type.instance);
 
-        final VersionedIndex versionedIndex = newVersionedIndex();
+        final VersionedIndex versionedIndex = newIndexDescriptor();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
         try (NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,

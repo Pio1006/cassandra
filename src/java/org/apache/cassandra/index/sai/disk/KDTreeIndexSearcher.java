@@ -26,12 +26,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.v1.BKDReader;
+import org.apache.cassandra.index.sai.disk.v1.readers.BKDReader;
+import org.apache.cassandra.index.sai.disk.v1.Segment;
 import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.index.sai.disk.BKDQueries.bkdQueryFrom;
 

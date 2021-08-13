@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -48,7 +49,7 @@ public class LegacyIndexFileTest extends SAITester
 
         for (File file : srcDir.listFiles())
         {
-            Pair<IndexDescriptor, Component> pair = IndexDescriptor.fromFilenameWithComponent(file);
+            Pair<IndexDescriptor, IndexComponent> pair = IndexDescriptor.fromFilenameWithComponent(file);
 
         }
 

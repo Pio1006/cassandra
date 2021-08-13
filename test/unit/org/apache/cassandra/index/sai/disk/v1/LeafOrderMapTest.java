@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.cassandra.index.sai.disk.v1.readers.DirectReaders;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.SeekingRandomAccessInput;
 import org.apache.lucene.store.ByteArrayIndexInput;

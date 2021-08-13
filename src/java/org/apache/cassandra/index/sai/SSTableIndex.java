@@ -32,15 +32,14 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.disk.Segment;
-import org.apache.cassandra.index.sai.disk.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.Segment;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
+import org.apache.cassandra.index.sai.disk.v1.V1SSTableContext;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.IndexFileUtils;
-import org.apache.cassandra.index.sai.utils.PerIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.utils.RangeConcatIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -86,17 +85,16 @@ public class SSTableIndex
 
         try
         {
-            VersionedIndex versionedIndex = new VersionedIndex(sstableContext.indexDescriptor(), columnContext.getIndexName(), columnContext.isLiteral());
-            this.indexFiles = new PerIndexFiles(versionedIndex);
+            this.indexFiles = sstableContext.perIndexFiles(columnContext);
 
             ImmutableList.Builder<Segment> segmentsBuilder = ImmutableList.builder();
 
-            final MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
+            final MetadataSource source = MetadataSource.load(sstableContext.openInput(IndexComponent.create(IndexComponent.Type.META, columnContext.getIndexName())));
             metadatas = SegmentMetadata.load(source, null);
 
             for (SegmentMetadata metadata : metadatas)
             {
-                segmentsBuilder.add(new Segment(columnContext, sstableContext, indexFiles, metadata));
+                segmentsBuilder.add(new Segment(columnContext, (V1SSTableContext)sstableContext, indexFiles, metadata));
             }
 
             segments = segmentsBuilder.build();
@@ -217,7 +215,7 @@ public class SSTableIndex
 
     public Version getVersion()
     {
-        return sstableContext.indexDescriptor().version();
+        return sstableContext.indexDescriptor().version;
     }
 
     public SSTableReader getSSTable()

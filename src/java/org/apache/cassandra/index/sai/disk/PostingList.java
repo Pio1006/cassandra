@@ -27,7 +27,6 @@ import org.apache.cassandra.utils.Throwables;
 /**
  * Interface for advancing on and consuming a posting list.
  */
-//TODO Need to check int and long usage throughout this post DSP-19608
 @NotThreadSafe
 public interface PostingList extends Closeable
 {

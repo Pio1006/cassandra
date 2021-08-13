@@ -30,7 +30,7 @@ public class PackedLongsPostingList implements PostingList
     private final PackedLongValues.Iterator iterator;
     private final PackedLongValues values;
 
-    PackedLongsPostingList(PackedLongValues values)
+    public PackedLongsPostingList(PackedLongValues values)
     {
         this.values = values;
         iterator = values.iterator();

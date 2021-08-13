@@ -30,9 +30,9 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.exceptions.ReadFailureException;
 import org.apache.cassandra.config.StorageAttachedIndexOptions;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.SSTableComponentsWriter;
-import org.apache.cassandra.index.sai.disk.SSTableIndexWriter;
-import org.apache.cassandra.index.sai.disk.SegmentBuilder;
+import org.apache.cassandra.index.sai.disk.PerSSTableComponentsWriter;
+import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
@@ -75,7 +75,7 @@ public abstract class SegmentFlushingFailureTest extends SAITester
                                             .atEntry()).build();
 
     private static final Injection sstableComponentsWriterFailure =
-            newFailureOnEntry("sstableComponentsWriterFailure", SSTableComponentsWriter.class, "complete", RuntimeException.class);
+            newFailureOnEntry("sstableComponentsWriterFailure", PerSSTableComponentsWriter.class, "complete", RuntimeException.class);
 
     private static final Injection segmentFlushFailure =
             newFailureOnEntry("segmentFlushFailure", SegmentBuilder.class, "flush", RuntimeException.class);

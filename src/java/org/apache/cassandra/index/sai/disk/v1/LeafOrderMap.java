@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 
+import org.apache.cassandra.index.sai.disk.v1.readers.DirectReaders;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.packed.DirectWriter;

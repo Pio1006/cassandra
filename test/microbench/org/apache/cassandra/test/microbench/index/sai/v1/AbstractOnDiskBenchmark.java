@@ -25,13 +25,13 @@ import java.util.stream.IntStream;
 
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.index.sai.disk.SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
-import org.apache.cassandra.index.sai.disk.v1.BlockPackedReader;
+import org.apache.cassandra.index.sai.disk.v1.readers.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
-import org.apache.cassandra.index.sai.disk.v1.PostingsReader;
-import org.apache.cassandra.index.sai.disk.v1.PostingsWriter;
+import org.apache.cassandra.index.sai.disk.v1.readers.PostingsReader;
+import org.apache.cassandra.index.sai.disk.v1.writers.PostingsWriter;
+import org.apache.cassandra.index.sai.disk.v1.writers.SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.ArrayPostingList;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
@@ -100,7 +100,7 @@ public abstract class AbstractOnDiskBenchmark
 
         descriptor = new Descriptor(Files.createTempDirectory("jmh").toFile(), "ks", this.getClass().getSimpleName(), 1);
         groupComponents = VersionedIndex.create(descriptor);
-        indexComponents = VersionedIndex.create(descriptor, "col");
+        indexComponents = VersionedIndex.create(descriptor);
 
         // write per-sstable components: token and offset
         writeSSTableComponents(numRows());
