@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.readers;
 
 import java.io.IOException;
 
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.writers.AbstractBlockPackedWriter;
@@ -51,9 +52,9 @@ public class MonotonicBlockPackedReader implements LongArray.Factory
     private final PackedLongValues minValues;
     private final float[] averages;
 
-    public MonotonicBlockPackedReader(FileHandle file, Component component, MetadataSource source) throws IOException
+    public MonotonicBlockPackedReader(FileHandle file, IndexComponent component, MetadataSource source) throws IOException
     {
-        this(file, new NumericValuesMeta(source.get(component.name())));
+        this(file, new NumericValuesMeta(source.get(component.type.name())));
     }
 
     @SuppressWarnings("resource")

@@ -22,6 +22,7 @@ import java.io.IOException;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.index.sai.SSTableQueryContext;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.writers.AbstractBlockPackedWriter;
 import org.apache.cassandra.index.sai.disk.v1.writers.BlockPackedWriter;
@@ -53,9 +54,9 @@ public class BlockPackedReader implements LongArray.Factory
     private final long[] blockOffsets;
     private final long[] minValues;
 
-    public BlockPackedReader(FileHandle file, Component component, MetadataSource source) throws IOException
+    public BlockPackedReader(FileHandle file, IndexComponent component, MetadataSource source) throws IOException
     {
-        this(file, new NumericValuesMeta(source.get(component.name())));
+        this(file, new NumericValuesMeta(source.get(component.type.name())));
     }
 
     @SuppressWarnings("resource")

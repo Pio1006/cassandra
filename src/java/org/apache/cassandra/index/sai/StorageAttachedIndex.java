@@ -669,13 +669,13 @@ public class StorageAttachedIndex implements Index
         throw new UnsupportedOperationException("Storage-attached index flush observers should never be created directly.");
     }
 
-    @Override
-    public Set<Component> getComponents()
-    {
-        //TODO Fix
-//        return new HashSet<>(IndexComponents.perColumnComponents(context.getIndexName(), context.isLiteral()));
-        return new HashSet<>();
-    }
+//    @Override
+//    public Set<Component> getComponents()
+//    {
+//        //TODO Fix
+////        return new HashSet<>(IndexComponents.perColumnComponents(context.getIndexName(), context.isLiteral()));
+//        return new HashSet<>();
+//    }
 
     @Override
     public Indexer indexerFor(DecoratedKey key,
@@ -721,11 +721,5 @@ public class StorageAttachedIndex implements Index
     {
         baseCfs.indexManager.makeIndexNonQueryable(this, Status.BUILD_FAILED);
         logger.warn(context.logMessage("Storage-attached index is no longer queryable. Please restart this node to repair it."));
-    }
-
-    void deleteIndexFiles(SSTableReader sstable)
-    {
-        //TODO Fix
-//        IndexComponents.create(context.getIndexName(), sstable).deleteColumnIndex();
     }
 }

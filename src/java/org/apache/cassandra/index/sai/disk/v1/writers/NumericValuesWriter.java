@@ -75,7 +75,7 @@ public class NumericValuesWriter implements Closeable
     @Override
     public void close() throws IOException
     {
-        try (IndexOutput o = metadataWriter.builder(component.name()))
+        try (IndexOutput o = metadataWriter.builder(component.type.name()))
         {
             final long fp = writer.finish();
             SAICodecUtils.writeFooter(output);

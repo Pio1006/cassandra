@@ -437,7 +437,7 @@ public class SAITester extends CQLTester
     {
         Set<File> indexFiles = indexFiles();
 
-        for (Component component : IndexComponent.PER_SSTABLE)
+        for (IndexComponent component : IndexComponent.PER_SSTABLE)
         {
             Set<File> tableFiles = componentFiles(indexFiles, component);
             assertEquals(tableFiles.toString(), perSSTableFiles, tableFiles.size());
@@ -670,9 +670,9 @@ public class SAITester extends CQLTester
         }
     }
 
-    protected Set<File> componentFiles(Collection<File> indexFiles, Component component)
+    protected Set<File> componentFiles(Collection<File> indexFiles, IndexComponent component)
     {
-        return indexFiles.stream().filter(c -> c.getName().endsWith(component.name)).collect(Collectors.toSet());
+        return indexFiles.stream().filter(c -> c.getName().endsWith(component.type.representation)).collect(Collectors.toSet());
     }
 
     protected Set<File> componentFiles(Collection<File> indexFiles, String shortName)

@@ -124,10 +124,8 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
          */
         if (indices.isEmpty())
         {
-            Set<Component> toRemove = new HashSet<>(IndexComponent.PER_SSTABLE);
             for (SSTableReader sstable : contextManager.sstables())
-                sstable.unregisterComponents(toRemove, baseCfs.getTracker());
-
+                sstable.unregisterComponents(IndexDescriptor.forSSTable(sstable.descriptor).getSSTableComponents(), baseCfs.getTracker());
             deletePerSSTableFiles(baseCfs.getLiveSSTables());
             baseCfs.getTracker().unsubscribe(this);
         }
@@ -229,24 +227,25 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     @Override
     public Set<Component> getComponents()
     {
-        return getComponents(indices);
+        return Collections.emptySet();
     }
 
-    static Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
-    {
-        Set<Component> components = new HashSet<>(IndexComponent.PER_SSTABLE);
-        indices.forEach(index -> components.addAll(index.getComponents()));
-        return components;
-    }
+//    static Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
+//    {
+//        Set<Component> components = new HashSet<>(IndexComponent.PER_SSTABLE);
+//        indices.forEach(index -> components.addAll(index.getComponents()));
+//        return components;
+//    }
 
     // This differs from getComponents in that it only returns index components that exist on disk.
     // It avoids errors being logged by the SSTable.readTOC method when we have an empty index.
     @VisibleForTesting
     public static Set<Component> getLiveComponents(SSTableReader sstable, Collection<StorageAttachedIndex> indices)
     {
-        return getComponents(indices).stream()
-                                     .filter(component -> sstable.descriptor.fileFor(component).exists())
-                                     .collect(Collectors.toSet());
+        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+        Set<Component> components = indexDescriptor.getSSTableComponents();
+        indices.stream().forEach(index -> components.addAll(indexDescriptor.getSSTableComponents(index.getContext().getIndexName())));
+        return components;
     }
 
     @Override
@@ -314,11 +313,12 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         if (!results.right.isEmpty())
         {
             results.right.forEach(sstable -> {
-                IndexDescriptor.forSSTable(sstable.descriptor).deletePerSSTableIndexComponents();
+                IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+                indexDescriptor.deletePerSSTableIndexComponents();
                 // Column indexes are invalid if their SSTable-level components are corrupted so delete
                 // their associated index files and mark them non-queryable.
                 indices.forEach(index -> {
-                    index.deleteIndexFiles(sstable);
+                    indexDescriptor.deleteColumnIndex(index.getContext().getIndexName());
                     index.makeIndexNonQueryable();
                 });
             });
@@ -335,7 +335,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             {
                 // Delete the index files and mark the index non-queryable, as its view may be compromised,
                 // and incomplete, for our callers:
-                invalid.forEach(context -> index.deleteIndexFiles(context.sstable));
+                invalid.forEach(context -> context.indexDescriptor.deleteColumnIndex(index.getContext().getIndexName()));
                 index.makeIndexNonQueryable();
                 incomplete.add(index);
             }

@@ -152,7 +152,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             perSSTableFileLock = shouldWriteTokenOffsetFiles(sstable);
             boolean perColumnOnly = perSSTableFileLock == null;
             // remove existing per column index files instead of overwriting
-            indexes.forEach(index -> index.deleteIndexFiles(sstable));
+            indexes.forEach(index -> IndexDescriptor.forSSTable(sstable.descriptor).deleteColumnIndex(index.getContext().getIndexName()));
 
             final CompressionParams compressionParams = CryptoUtils.getCompressionParams(sstable);
 

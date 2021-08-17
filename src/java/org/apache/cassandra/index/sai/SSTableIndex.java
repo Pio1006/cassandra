@@ -147,9 +147,7 @@ public class SSTableIndex
      */
     public long sizeOfPerColumnComponents()
     {
-        //TODO Fix
-//        return components.sizeOfPerColumnComponents();
-        return 0;
+        return sstableContext.indexDescriptor.sizeOfPerColumnComponents(columnContext.getIndexName());
     }
 
     /**

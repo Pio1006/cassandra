@@ -21,10 +21,12 @@ package org.apache.cassandra.index.sai.disk.format;
 import java.io.File;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -44,6 +46,7 @@ import org.apache.cassandra.index.sai.disk.PerSSTableComponentsWriter;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
@@ -213,6 +216,11 @@ public class IndexDescriptor
         return false;
     }
 
+    public Set<IndexComponent> getPerIndexComponents(String index)
+    {
+        return perIndexComponents.containsKey(index) ? perIndexComponents.get(index) : Collections.emptySet();
+    }
+
     public int numberOfComponents(String indexName)
     {
         return perIndexComponents.containsKey(indexName) ? perIndexComponents.get(indexName).size() : 0;
@@ -236,24 +244,43 @@ public class IndexDescriptor
     private String filenameFor(IndexComponent component)
     {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(descriptor.baseFilename());
+        stringBuilder.append(descriptor.baseFilename()).append(SEPARATOR).append(componentName(component));
+        return stringBuilder.toString();
+    }
+
+    private String componentName(IndexComponent indexComponent)
+    {
+        StringBuilder stringBuilder = new StringBuilder();
 
         if (version.onOrAfter(Version.BA))
         {
-            stringBuilder.append(SEPARATOR).append(SAI_DESCRIPTOR);
+            stringBuilder.append(SAI_DESCRIPTOR);
             stringBuilder.append(SAI_SEPARATOR).append(version);
-            if (!component.type.perSSTable)
-                stringBuilder.append(SAI_SEPARATOR).append(component.index);
-            stringBuilder.append(SAI_SEPARATOR).append(component.type.representation);
+            if (!indexComponent.type.perSSTable)
+                stringBuilder.append(SAI_SEPARATOR).append(indexComponent.index);
+            stringBuilder.append(SAI_SEPARATOR).append(indexComponent.type.representation);
             stringBuilder.append(EXTENSION);
         }
         else if (version.equals(Version.AA))
         {
             stringBuilder.append(SEPARATOR)
-                         .append(component.type.perSSTable ? String.format(VERSION_AA_PER_SSTABLE_FORMAT, component.type.representation)
-                                                           : String.format(VERSION_AA_PER_INDEX_FORMAT, component.index, component.type.representation));
+                         .append(indexComponent.type.perSSTable ? String.format(VERSION_AA_PER_SSTABLE_FORMAT, indexComponent.type.representation)
+                                                                : String.format(VERSION_AA_PER_INDEX_FORMAT, indexComponent.index, indexComponent.type.representation));
         }
         return stringBuilder.toString();
+    }
+
+    public Set<Component> getSSTableComponents()
+    {
+        return perSSTableComponents.stream().map(c -> new Component(Component.Type.CUSTOM, componentName(c))).collect(Collectors.toSet());
+    }
+
+    public Set<Component> getSSTableComponents(String index)
+    {
+        return perIndexComponents.containsKey(index) ? perSSTableComponents.stream()
+                                                                           .map(c -> new Component(Component.Type.CUSTOM, componentName(c)))
+                                                                           .collect(Collectors.toSet())
+                                                     : Collections.emptySet();
     }
 
     public PerSSTableComponentsWriter newPerSSTableComponentsWriter(boolean perColumnOnly,

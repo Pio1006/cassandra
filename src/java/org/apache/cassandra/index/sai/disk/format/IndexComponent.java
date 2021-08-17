@@ -24,9 +24,7 @@ import java.util.Set;
 import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.io.sstable.Component;
-
-public class IndexComponent extends Component
+public class IndexComponent
 {
     public static final EnumSet<IndexComponent.Type> TYPES = EnumSet.allOf(IndexComponent.Type.class);
 
@@ -108,7 +106,6 @@ public class IndexComponent extends Component
 
     private IndexComponent(Type type)
     {
-        super(Component.Type.CUSTOM, type.name());
         this.type = type;
         this.index = null;
         this.elements = new String[1];
@@ -117,7 +114,6 @@ public class IndexComponent extends Component
 
     private IndexComponent(Type type, String index)
     {
-        super(Component.Type.CUSTOM, type.name());
         this.type = type;
         this.index = index;
         this.elements = new String[2];
