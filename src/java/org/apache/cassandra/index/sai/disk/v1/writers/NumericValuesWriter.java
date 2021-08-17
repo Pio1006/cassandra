@@ -24,7 +24,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.NumericValuesMeta;
-import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.lucene.store.IndexOutput;
@@ -38,7 +37,7 @@ public class NumericValuesWriter implements Closeable
     private final IndexOutput output;
     private final AbstractBlockPackedWriter writer;
     private final MetadataWriter metadataWriter;
-    private final Component component;
+    private final IndexComponent component;
     private final int blockSize;
     private long count = 0;
 
@@ -56,10 +55,10 @@ public class NumericValuesWriter implements Closeable
                                boolean monotonic,
                                int blockSize) throws IOException
     {
-        this(component, indexDescriptor.createOutput(component, false, false), metadataWriter, monotonic, blockSize);
+        this(component, indexDescriptor.openOutput(component, false, false), metadataWriter, monotonic, blockSize);
     }
 
-    private NumericValuesWriter(Component component,
+    private NumericValuesWriter(IndexComponent component,
                                 IndexOutput indexOutput,
                                 MetadataWriter metadataWriter,
                                 boolean monotonic, int blockSize) throws IOException
@@ -76,8 +75,7 @@ public class NumericValuesWriter implements Closeable
     @Override
     public void close() throws IOException
     {
-        //TODO Check this is correct - should we be using name here?
-        try (IndexOutput o = metadataWriter.builder(component.name))
+        try (IndexOutput o = metadataWriter.builder(component.name()))
         {
             final long fp = writer.finish();
             SAICodecUtils.writeFooter(output);

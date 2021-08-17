@@ -49,7 +49,6 @@ public class LegacyIndexFileTest extends SAITester
 
         for (File file : srcDir.listFiles())
         {
-            Pair<IndexDescriptor, IndexComponent> pair = IndexDescriptor.fromFilenameWithComponent(file);
 
         }
 

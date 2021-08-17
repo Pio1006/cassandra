@@ -52,13 +52,13 @@ public class SSTableComponentsWriter implements PerSSTableComponentsWriter
     {
         this.indexDescriptor = indexDescriptor;
 
-        this.metadataWriter = new MetadataWriter(indexDescriptor.createOutput(IndexComponent.GROUP_META, false, false));
+        this.metadataWriter = new MetadataWriter(indexDescriptor.openOutput(IndexComponent.GROUP_META, false, false));
 
         this.tokenWriter = new NumericValuesWriter(IndexComponent.TOKEN_VALUES,
-                                                   indexDescriptor.createOutput(IndexComponent.TOKEN_VALUES, false, false),
+                                                   indexDescriptor.openOutput(IndexComponent.TOKEN_VALUES, false, false),
                                                    metadataWriter, false);
         this.offsetWriter = new NumericValuesWriter(IndexComponent.OFFSETS_VALUES,
-                                                    indexDescriptor.createOutput(IndexComponent.OFFSETS_VALUES, false, false),
+                                                    indexDescriptor.openOutput(IndexComponent.OFFSETS_VALUES, false, false),
                                                     metadataWriter, true);
     }
 

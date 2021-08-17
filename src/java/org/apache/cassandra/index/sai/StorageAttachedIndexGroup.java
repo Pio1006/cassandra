@@ -335,7 +335,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
             {
                 // Delete the index files and mark the index non-queryable, as its view may be compromised,
                 // and incomplete, for our callers:
-                invalid.forEach(context -> index.deleteIndexFiles(context.sstable()));
+                invalid.forEach(context -> index.deleteIndexFiles(context.sstable));
                 index.makeIndexNonQueryable();
                 incomplete.add(index);
             }

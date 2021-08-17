@@ -75,8 +75,8 @@ public class TermsReaderTest extends NdiRandomizedTest
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index), false);
-        FileHandle postingLists = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index), false);
+        FileHandle termsData = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index));
+        FileHandle postingLists = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index));
 
         long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 
@@ -107,8 +107,8 @@ public class TermsReaderTest extends NdiRandomizedTest
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
 
-        FileHandle termsData = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index), false);
-        FileHandle postingLists = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index), false);
+        FileHandle termsData = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index));
+        FileHandle postingLists = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index));
 
         long termsFooterPointer = Long.parseLong(indexMetas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 

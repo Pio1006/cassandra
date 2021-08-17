@@ -113,7 +113,7 @@ public class PostingsWriter implements Closeable
 
     public PostingsWriter(IndexDescriptor indexDescriptor, String index, int blockSize, boolean segmented) throws IOException
     {
-        this(indexDescriptor.createOutput(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index), true, segmented), blockSize);
+        this(indexDescriptor.openOutput(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index), true, segmented), blockSize);
     }
 
     private PostingsWriter(IndexOutput dataOutput, int blockSize) throws IOException

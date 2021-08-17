@@ -64,7 +64,6 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Component;
@@ -102,12 +101,12 @@ public class SAITester extends CQLTester
                                                                               .build();
 
     protected static final Injections.Counter perSSTableValidationCounter = Injections.newCounter("PerSSTableValidationCounter")
-                                                                                      .add(newInvokePoint().onClass(VersionedIndex.class)
+                                                                                      .add(newInvokePoint().onClass(IndexDescriptor.class)
                                                                                                            .onMethod("validatePerSSTableComponents"))
                                                                                       .build();
 
     protected static final Injections.Counter perColumnValidationCounter = Injections.newCounter("PerColumnValidationCounter")
-                                                                                     .add(newInvokePoint().onClass(VersionedIndex.class)
+                                                                                     .add(newInvokePoint().onClass(IndexDescriptor.class)
                                                                                                           .onMethod("validatePerColumnComponents", "boolean"))
                                                                                      .build();
 
@@ -224,13 +223,13 @@ public class SAITester extends CQLTester
         }
     }
 
-    protected void corruptNDIComponent(Component ndiComponent, CorruptionType corruptionType) throws Exception
+    protected void corruptIndexComponent(IndexComponent indexComponent, CorruptionType corruptionType) throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            File file = sstable.descriptor.fileFor(ndiComponent);
+            File file = IndexDescriptor.forSSTable(sstable.descriptor).fileFor(indexComponent);
             corruptionType.corrupt(file);
         }
     }
@@ -279,8 +278,8 @@ public class SAITester extends CQLTester
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            VersionedIndex versionedIndex = VersionedIndex.create(sstable.descriptor);
-            if (!versionedIndex.validatePerSSTableComponentsChecksum() || !versionedIndex.validatePerColumnComponentsChecksum())
+            IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+            if (!indexDescriptor.validatePerSSTableComponentsChecksum() || !indexDescriptor.validatePerColumnComponentsChecksum(context.getIndexName()))
                 return false;
         }
         return true;

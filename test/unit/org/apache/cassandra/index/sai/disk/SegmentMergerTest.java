@@ -32,7 +32,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
@@ -186,12 +186,12 @@ public class SegmentMergerTest extends SAITester
         File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
         Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), generation, SSTableFormat.Type.current());
         TableMetadata table = currentTableMetadata();
-        assertTrue(VersionedIndex.create(descriptor).isGroupIndexComplete());
+        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(descriptor);
+        assertTrue(indexDescriptor.isGroupIndexComplete());
         IndexMetadata index = table.indexes.get(indexName).get();
         ColumnContext context = new ColumnContext(table, index);
-        assertTrue(VersionedIndex.create(descriptor).isColumnIndexComplete(indexName));
-        VersionedIndex versionedIndex = VersionedIndex.create(descriptor);
-        final MetadataSource source = MetadataSource.load(versionedIndex.openInput(IndexComponent.create(IndexComponent.Type.META, indexName)));
+        assertTrue(indexDescriptor.isColumnIndexComplete(indexName));
+        final MetadataSource source = MetadataSource.load(indexDescriptor.openInput(IndexComponent.create(IndexComponent.Type.META, indexName)));
         return SegmentMetadata.load(source, null);
     }
 }

@@ -154,7 +154,7 @@ public class Descriptor
         return buff.toString();
     }
 
-    private void appendFileName(StringBuilder buff)
+    public void appendFileName(StringBuilder buff)
     {
         buff.append(version).append(separator);
         buff.append(generation);

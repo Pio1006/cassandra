@@ -516,14 +516,14 @@ public class ColumnContext
 
             if (!context.isColumnIndexComplete(getIndexName()))
             {
-                logger.debug(logMessage("An on-disk index build for SSTable {} has not completed."), context.descriptor());
+                logger.debug(logMessage("An on-disk index build for SSTable {} has not completed."), context.sstable.descriptor);
                 continue;
             }
 
             if (context.isColumnIndexEmpty(getIndexName()))
             {
                 logger.debug(logMessage("No on-disk index was built for SSTable {} because the SSTable " +
-                                                "had no indexable rows for the index."), context.descriptor());
+                                                "had no indexable rows for the index."), context.sstable.descriptor);
                 continue;
             }
 
@@ -531,11 +531,11 @@ public class ColumnContext
             {
                 if (validate)
                 {
-                    context.validatePerColumnComponents(getIndexName(), isLiteral());
+                    context.indexDescriptor.validatePerColumnComponents(getIndexName());
                 }
 
                 SSTableIndex index = new SSTableIndex(context, this);
-                logger.debug(logMessage("Successfully created index for SSTable {}."), context.descriptor());
+                logger.debug(logMessage("Successfully created index for SSTable {}."), context.sstable.descriptor);
 
                 // Try to add new index to the set, if set already has such index, we'll simply release and move on.
                 // This covers situation when SSTable collection has the same SSTable multiple
@@ -548,7 +548,7 @@ public class ColumnContext
             catch (Throwable e)
             {
                 invalid.add(context);
-                logger.warn(logMessage("Invalid per-column component for SSTable {}"), context.descriptor(), e);
+                logger.warn(logMessage("Invalid per-column component for SSTable {}"), context.sstable.descriptor, e);
             }
         }
 

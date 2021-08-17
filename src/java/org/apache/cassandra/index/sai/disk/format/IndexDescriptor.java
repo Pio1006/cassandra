@@ -21,8 +21,6 @@ package org.apache.cassandra.index.sai.disk.format;
 import java.io.File;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -32,14 +30,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
-
 import org.apache.commons.lang3.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +51,7 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.IOUtils;
 
 public class IndexDescriptor
 {
@@ -87,6 +82,8 @@ public class IndexDescriptor
     public final Descriptor descriptor;
     public final Set<IndexComponent> perSSTableComponents;
     public final Map<String, Set<IndexComponent>> perIndexComponents;
+    public final Map<IndexComponent, File> onDiskFileMap;
+    public final Map<IndexComponent, File> onDiskTemporaryFileMap;
 
     private IndexDescriptor(Version version, Descriptor descriptor)
     {
@@ -94,46 +91,62 @@ public class IndexDescriptor
         this.descriptor = descriptor;
         this.perSSTableComponents = Sets.newHashSet();
         this.perIndexComponents = Maps.newHashMap();
+        this.onDiskFileMap = Maps.newHashMap();
+        this.onDiskTemporaryFileMap = Maps.newHashMap();
     }
 
     private IndexDescriptor(Version version,
                             Descriptor descriptor,
                             Set<IndexComponent> perSSTableComponents,
-                            Map<String, Set<IndexComponent>> perIndexComponents)
+                            Map<String, Set<IndexComponent>> perIndexComponents,
+                            Map<IndexComponent, File> onDiskFileMap,
+                            Map<IndexComponent, File> onDiskTemporaryFileMap)
     {
         this.version = version;
         this.descriptor = descriptor;
         this.perSSTableComponents = perSSTableComponents;
         this.perIndexComponents = perIndexComponents;
+        this.onDiskFileMap = onDiskFileMap;
+        this.onDiskTemporaryFileMap = onDiskTemporaryFileMap;
     }
 
     public static IndexDescriptor forSSTable(Descriptor descriptor)
     {
         Set<IndexComponent> perSSTableComponents = Sets.newHashSet();
         Map<String, Set<IndexComponent>> perIndexComponents = Maps.newHashMap();
-        Version version = null;
-        for (File file : descriptor.directory.listFiles())
-        {
-            if (file.getName().contains(SAI_DESCRIPTOR))
-            {
-                Pair<Version, IndexComponent> versionedComponent = fromFile(file);
-                if (versionedComponent != null)
-                {
-                    if (version == null)
-                        version = versionedComponent.left;
-                    // All components must be of the same version. If we have a mismatch then return
-                    // the latest version with no components
-                    else if (!version.equals(versionedComponent.left))
-                        return latest(descriptor);
+        Map<IndexComponent, File> onDiskFileMap = Maps.newHashMap();
+        Map<IndexComponent, File> onDiskTemporaryFileMap = Maps.newHashMap();
 
-                    if (versionedComponent.right.type.perSSTable)
-                        perSSTableComponents.add(versionedComponent.right);
-                    else
-                        perIndexComponents.computeIfAbsent(versionedComponent.right.index, k -> Sets.newHashSet()).add(versionedComponent.right);
-                }
+        StringBuilder buffer = new StringBuilder();
+        descriptor.appendFileName(buffer);
+        String header = buffer.toString();
+
+        Version version = null;
+        for (File file : descriptor.directory.listFiles((dir, name) -> name.contains(header) && name.contains(SAI_DESCRIPTOR)))
+        {
+            Pair<Version, IndexComponent> versionedComponent = fromFile(file);
+            if (versionedComponent != null)
+            {
+                if (version == null)
+                    version = versionedComponent.left;
+                // All components must be of the same version. If we have a mismatch then return
+                // the latest version with no components
+                else if (!version.equals(versionedComponent.left))
+                    return latest(descriptor);
+
+                if (versionedComponent.right.type.perSSTable)
+                    perSSTableComponents.add(versionedComponent.right);
+                else
+                    perIndexComponents.computeIfAbsent(versionedComponent.right.index, k -> Sets.newHashSet()).add(versionedComponent.right);
+                onDiskFileMap.put(versionedComponent.right, file);
             }
         }
-        return new IndexDescriptor(version == null ? Version.LATEST: version, descriptor, perSSTableComponents, perIndexComponents);
+        return new IndexDescriptor(version == null ? Version.LATEST: version,
+                                   descriptor,
+                                   perSSTableComponents,
+                                   perIndexComponents,
+                                   onDiskFileMap,
+                                   onDiskTemporaryFileMap);
     }
 
     @VisibleForTesting
@@ -147,52 +160,6 @@ public class IndexDescriptor
         Preconditions.checkArgument(descriptor != null, "Descriptor can't be null");
 
         return new IndexDescriptor(Version.LATEST, descriptor);
-    }
-
-    public static Pair<IndexDescriptor, IndexComponent> fromFilenameWithComponent(File file)
-    {
-        Preconditions.checkArgument(file != null, "File cannot be null");
-
-        String filename = file.getName();
-        if (filename.contains(SAI_DESCRIPTOR))
-        {
-            Descriptor descriptor = Descriptor.fromFilename(file);
-
-            Matcher matcher = VERSION_BA_REGEX.matcher(filename);
-            if (matcher.matches())
-            {
-                Version version = Version.parse(matcher.group(1));
-                String index = matcher.group(3);
-                IndexComponent.Type type = IndexComponent.Type.fromRepresentation(matcher.group(4));
-
-                return Pair.create(new IndexDescriptor(version, descriptor),
-                                   index == null ? IndexComponent.create(type) : IndexComponent.create(type, index));
-
-            }
-            matcher = VERSION_AA_REGEX.matcher(filename);
-            if (matcher.matches())
-            {
-                String index = matcher.group(2);
-                IndexComponent.Type type = IndexComponent.Type.fromRepresentation(matcher.group(3));
-
-                return Pair.create(new IndexDescriptor(Version.AA, descriptor),
-                                   StringUtils.isEmpty(index) ? IndexComponent.create(type) : IndexComponent.create(type, index));
-            }
-            matcher = VERSION_AA_LEGACY_REGEX.matcher(filename);
-            if (matcher.matches())
-            {
-                String index = matcher.group(2);
-                IndexComponent.Type type = IndexComponent.Type.fromRepresentation(matcher.group(3));
-                IndexComponent indexComponent = StringUtils.isEmpty(index) ? IndexComponent.create(type) : IndexComponent.create(type, index);
-                IndexDescriptor indexDescriptor = new IndexDescriptor(Version.AA, descriptor);
-                // If we identify any legacy named per-index components rename them immediately
-                if (file.exists() && !indexComponent.type.perSSTable)
-                    FileUtils.renameWithConfirm(file, indexDescriptor.fileFor(IndexComponent.create(type, index)));
-                return Pair.create(new IndexDescriptor(Version.AA, descriptor),
-                                   StringUtils.isEmpty(index) ? IndexComponent.create(type) : IndexComponent.create(type, index));
-            }
-        }
-        return null;
     }
 
     public static Pair<Version, IndexComponent> fromFile(File file)
@@ -234,7 +201,6 @@ public class IndexDescriptor
                 return Pair.create(Version.AA, StringUtils.isEmpty(index) ? IndexComponent.create(type) : IndexComponent.create(type, index));
             }
         }
-        //TODO Probably want to log this or raise exception - see what SSTable does
         return null;
     }
 
@@ -254,12 +220,12 @@ public class IndexDescriptor
 
     public File tmpFileFor(IndexComponent component)
     {
-        return new File(tmpFilenameFor(component));
+        return onDiskTemporaryFileMap.computeIfAbsent(component, c -> new File(tmpFilenameFor(c)));
     }
 
     public File fileFor(IndexComponent component)
     {
-        return new File(filenameFor(component));
+        return onDiskFileMap.computeIfAbsent(component, c -> new File(filenameFor(c)));
     }
 
     private String tmpFilenameFor(IndexComponent component)
@@ -319,30 +285,101 @@ public class IndexDescriptor
         return isColumnIndexComplete(indexName) && numberOfComponents(indexName) == 1;
     }
 
-    public void validatePerSSTableComponents()
+    public long sizeOfPerColumnComponents(String index)
     {
-        //TODO Delegate to OnDiskFormat
+        if (perIndexComponents.containsKey(index))
+            return perIndexComponents.get(index)
+                                     .stream()
+                                     .map(onDiskFileMap::get)
+                                     .filter(java.util.Objects::nonNull)
+                                     .filter(File::exists)
+                                     .mapToLong(File::length)
+                                     .sum();
+        return 0;
+    }
+
+    public void validatePerColumnComponents(String indexName) throws IOException
+    {
+        if (perIndexComponents.containsKey(indexName))
+            for (IndexComponent indexComponent : perIndexComponents.get(indexName))
+                version.onDiskFormat().validateComponent(this, indexComponent, false);
+    }
+
+    public boolean validatePerColumnComponentsChecksum(String indexName)
+    {
+        if (perIndexComponents.containsKey(indexName))
+            for (IndexComponent indexComponent : perIndexComponents.get(indexName))
+            {
+                try
+                {
+                    version.onDiskFormat().validateComponent(this, indexComponent, true);
+                }
+                catch (Throwable e)
+                {
+                    return false;
+                }
+            }
+        return true;
+    }
+
+    public void validatePerSSTableComponents() throws IOException
+    {
+        for (IndexComponent indexComponent : perSSTableComponents)
+            version.onDiskFormat().validateComponent(this, indexComponent, false);
     }
 
     public boolean validatePerSSTableComponentsChecksum()
     {
-        //TODO Delegate to OnDiskFormat
+        for (IndexComponent indexComponent : perSSTableComponents)
+        {
+            try
+            {
+                version.onDiskFormat().validateComponent(this, indexComponent, true);
+            }
+            catch (Throwable e)
+            {
+                return false;
+            }
+        }
         return true;
     }
 
     public void deletePerSSTableIndexComponents()
     {
-        //TODO Delegate to OnDiskFormat (or here)
+        perSSTableComponents.stream()
+                            .map(onDiskFileMap::remove)
+                            .filter(java.util.Objects::nonNull)
+                            .forEach(this::deleteComponent);
+        perSSTableComponents.clear();
     }
 
     public void deleteColumnIndex(String index)
     {
-        //TODO Delegate to OnDiskFormat (or we can probably do this here)
+        if (perIndexComponents.containsKey(index))
+            perIndexComponents.remove(index)
+                              .stream()
+                              .map(onDiskFileMap::remove)
+                              .filter(java.util.Objects::nonNull)
+                              .forEach(this::deleteComponent);
     }
 
     public void deleteTemporaryComponents()
     {
+        onDiskTemporaryFileMap.values().stream().forEach(this::deleteComponent);
+        onDiskTemporaryFileMap.clear();
+    }
 
+    private void deleteComponent(File file)
+    {
+        logger.debug("Deleting storage attached index component file {}", file);
+        try
+        {
+            IOUtils.deleteFilesIfExist(file.toPath());
+        }
+        catch (IOException e)
+        {
+            logger.warn("Unable to delete storage attached index component file {} due to {}.", file, e.getMessage(), e);
+        }
     }
 
     public void createComponentOnDisk(IndexComponent component) throws IOException
@@ -361,7 +398,12 @@ public class IndexDescriptor
         return IndexFileUtils.instance.openBlockingInput(file);
     }
 
-    public IndexOutputWriter createOutput(IndexComponent component, boolean append, boolean temporary) throws IOException
+    public IndexOutputWriter openOutput(IndexComponent component) throws IOException
+    {
+        return openOutput(component, false, false);
+    }
+
+    public IndexOutputWriter openOutput(IndexComponent component, boolean append, boolean temporary) throws IOException
     {
         final File file = temporary ? tmpFileFor(component) : fileFor(component);
 
@@ -371,7 +413,7 @@ public class IndexDescriptor
                          component.type,
                          file);
 
-        IndexOutputWriter writer = IndexFileUtils.instance.createOutput(file);
+        IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file);
 
         if (append)
         {
@@ -379,6 +421,11 @@ public class IndexDescriptor
         }
 
         return writer;
+    }
+
+    public FileHandle createFileHandle(IndexComponent component)
+    {
+        return createFileHandle(component, false);
     }
 
     public FileHandle createFileHandle(IndexComponent component, boolean temporary)

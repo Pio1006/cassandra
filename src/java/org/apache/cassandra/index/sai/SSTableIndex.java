@@ -215,7 +215,7 @@ public class SSTableIndex
 
     public Version getVersion()
     {
-        return sstableContext.indexDescriptor().version;
+        return sstableContext.indexDescriptor.version;
     }
 
     public SSTableReader getSSTable()

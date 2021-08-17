@@ -47,7 +47,7 @@ public class TrieTermsDictionaryWriter implements Closeable
 
     public TrieTermsDictionaryWriter(IndexDescriptor indexDescriptor, String index, boolean segmented) throws IOException
     {
-        termDictionaryOutput = indexDescriptor.createOutput(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index), true, segmented);
+        termDictionaryOutput = indexDescriptor.openOutput(IndexComponent.create(IndexComponent.Type.TERMS_DATA, index), true, segmented);
         startOffset = termDictionaryOutput.getFilePointer();
 
         SAICodecUtils.writeHeader(termDictionaryOutput);

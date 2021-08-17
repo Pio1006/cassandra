@@ -40,14 +40,13 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.readers.TermsReader;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
-import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileHandle;
@@ -108,7 +107,7 @@ public class SegmentFlushTest
     private void testFlushBetweenRowIds(long sstableRowId1, long sstableRowId2, int segments) throws Exception
     {
         Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
-        Descriptor descriptor = new Descriptor(tmpDir.toFile(), "ks", "cf", 1);
+        IndexDescriptor indexDescriptor = IndexDescriptor.latest(new Descriptor(tmpDir.toFile(), "ks", "cf", 1));
 
         ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "column", UTF8Type.instance);
         IndexMetadata config = IndexMetadata.fromSchemaMetadata("index_name", IndexMetadata.Kind.CUSTOM, null);
@@ -117,7 +116,7 @@ public class SegmentFlushTest
                                                   UTF8Type.instance, new ClusteringComparator(),
                                                   column, config, IndexWriterConfig.defaultConfig("test"));
 
-        SSTableIndexWriter writer = new SSTableIndexWriter(descriptor, context, StorageAttachedIndex.SEGMENT_BUILD_MEMORY_LIMITER, () -> true, null);
+        SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, context, StorageAttachedIndex.SEGMENT_BUILD_MEMORY_LIMITER, () -> true, null);
 
         List<DecoratedKey> keys = Arrays.asList(dk("1"), dk("2"));
         Collections.sort(keys);
@@ -135,8 +134,7 @@ public class SegmentFlushTest
 
         writer.flush();
 
-        VersionedIndex versionedIndex = VersionedIndex.create(descriptor);
-        MetadataSource source = MetadataSource.load(IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.META));
+        MetadataSource source = MetadataSource.load(indexDescriptor.openInput(IndexComponent.create(IndexComponent.Type.META, context.getIndexName())));
 
         // verify segment count
         List<SegmentMetadata> segmentMetadatas = SegmentMetadata.load(source, null);
@@ -153,13 +151,13 @@ public class SegmentFlushTest
         maxTerm = term2;
         numRows = 2;
         verifySegmentMetadata(segmentMetadata);
-        verifyStringIndex(versionedIndex, segmentMetadata);
+        verifyStringIndex(indexDescriptor, context, segmentMetadata);
     }
 
-    private void verifyStringIndex(VersionedIndex versionedIndex, SegmentMetadata segmentMetadata) throws IOException
+    private void verifyStringIndex(IndexDescriptor indexDescriptor, ColumnContext columnContext, SegmentMetadata segmentMetadata) throws IOException
     {
-        FileHandle termsData = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.TERMS_DATA);
-        FileHandle postingLists = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+        FileHandle termsData = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.TERMS_DATA, columnContext.getIndexName()));
+        FileHandle postingLists = indexDescriptor.createFileHandle(IndexComponent.create(IndexComponent.Type.POSTING_LISTS, columnContext.getIndexName()));
 
         long termsFooterPointer = Long.parseLong(segmentMetadata.componentMetadatas.get(IndexComponent.Type.TERMS_DATA).attributes.get(SAICodecUtils.FOOTER_POINTER));
 

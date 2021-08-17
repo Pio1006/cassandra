@@ -49,9 +49,9 @@ public class Segment implements Closeable
     private final Token.KeyBound maxKeyBound;
 
     // per sstable
-    final LongArray.Factory segmentRowIdToTokenFactory;
-    final LongArray.Factory segmentRowIdToOffsetFactory;
-    final V1SSTableContext.KeyFetcher keyFetcher;
+    public final LongArray.Factory segmentRowIdToTokenFactory;
+    public final LongArray.Factory segmentRowIdToOffsetFactory;
+    public final V1SSTableContext.KeyFetcher keyFetcher;
     // per-index
     public final PerIndexFiles indexFiles;
     // per-segment

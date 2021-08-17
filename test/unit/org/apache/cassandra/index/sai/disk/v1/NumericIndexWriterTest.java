@@ -19,11 +19,14 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.nio.ByteBuffer;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.ImmutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
@@ -31,13 +34,12 @@ import org.apache.cassandra.index.sai.disk.MutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.TermsIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.readers.BKDReader;
 import org.apache.cassandra.index.sai.disk.v1.writers.BKDTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.writers.NumericIndexWriter;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.utils.AbstractIterator;
-import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.util.FileHandle;
@@ -51,6 +53,22 @@ import org.apache.lucene.util.NumericUtils;
 
 public class NumericIndexWriterTest extends NdiRandomizedTest
 {
+    private IndexDescriptor indexDescriptor;
+    private String index;
+    private ColumnContext columnContext;
+    private IndexComponent kdtree;
+    private IndexComponent kdtreePostings;
+
+    @Before
+    public void setup() throws Throwable
+    {
+        indexDescriptor = newIndexDescriptor();
+        index = newIndex();
+        columnContext = SAITester.createColumnContext(index, Int32Type.instance);
+        kdtree = IndexComponent.create(IndexComponent.Type.KD_TREE, index);
+        kdtreePostings = IndexComponent.create(IndexComponent.Type.KD_TREE_POSTING_LISTS, index);
+    }
+
     @Test
     public void shouldFlushFromRamBuffer() throws Exception
     {
@@ -71,12 +89,12 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
 
         final MutableOneDimPointValues pointValues = ramBuffer.asPointValues();
 
-        final VersionedIndex versionedIndex = newIndexDescriptor();
         int docCount = pointValues.getDocCount();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
-        try (NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
+        try (NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
+                                                                columnContext,
                                                                 Integer.BYTES,
                                                                 docCount, docCount,
                                                                 IndexWriterConfig.defaultConfig("test"),
@@ -85,12 +103,12 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
             indexMetas = writer.writeAll(pointValues);
         }
 
-        final FileHandle kdtree = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE);
-        final FileHandle kdtreePostings = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE_POSTING_LISTS);
+        final FileHandle kdtreeHandle = indexDescriptor.createFileHandle(kdtree);
+        final FileHandle kdtreePostingsHandle = indexDescriptor.createFileHandle(kdtreePostings);
 
-        try (BKDReader reader = new BKDReader(kdtree,
+        try (BKDReader reader = new BKDReader(kdtreeHandle,
                                               indexMetas.get(IndexComponent.Type.KD_TREE).root,
-                                              kdtreePostings,
+                                              kdtreePostingsHandle,
                                               indexMetas.get(IndexComponent.Type.KD_TREE_POSTING_LISTS).root
         ))
         {
@@ -126,10 +144,9 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
         final ImmutableOneDimPointValues pointValues = ImmutableOneDimPointValues
                 .fromTermEnum(termEnum, Int32Type.instance);
 
-        final VersionedIndex versionedIndex = newIndexDescriptor();
-
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (NumericIndexWriter writer = new NumericIndexWriter(versionedIndex,
+        try (NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
+                                                                columnContext,
                                                                 TypeUtil.fixedSizeOf(Int32Type.instance),
                                                                 maxSegmentRowId, maxSegmentRowId,
                                                                 IndexWriterConfig.defaultConfig("test"), false))
@@ -137,12 +154,12 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
             indexMetas = writer.writeAll(pointValues);
         }
 
-        final FileHandle kdtree = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE);
-        final FileHandle kdtreePostings = IndexFileUtils.instance.createFileHandle(versionedIndex, IndexComponent.Type.KD_TREE_POSTING_LISTS);
+        final FileHandle kdtreeHandle = indexDescriptor.createFileHandle(kdtree);
+        final FileHandle kdtreePostingsHandle = indexDescriptor.createFileHandle(kdtreePostings);
 
-        try (BKDReader reader = new BKDReader(kdtree,
+        try (BKDReader reader = new BKDReader(kdtreeHandle,
                                               indexMetas.get(IndexComponent.Type.KD_TREE).root,
-                                              kdtreePostings,
+                                              kdtreePostingsHandle,
                                               indexMetas.get(IndexComponent.Type.KD_TREE_POSTING_LISTS).root
         ))
         {

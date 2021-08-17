@@ -81,10 +81,9 @@ public class IndexDescriptorTest
     {
         File file = new File(descriptor.baseFilename() + "-SAI_GroupMeta.db");
 
-        Pair<IndexDescriptor, IndexComponent> pair = IndexDescriptor.fromFilenameWithComponent(file);
+        Pair<Version, IndexComponent> pair = IndexDescriptor.fromFile(file);
 
-        assertEquals(Version.AA, pair.left.version);
-        assertEquals(descriptor, pair.left.descriptor);
+        assertEquals(Version.AA, pair.left);
         assertEquals(IndexComponent.Type.GROUP_META, pair.right.type);
     }
 
@@ -93,10 +92,9 @@ public class IndexDescriptorTest
     {
         File file = new File(descriptor.baseFilename() + "-SAI_test_index_Meta.db");
 
-        Pair<IndexDescriptor, IndexComponent> pair = IndexDescriptor.fromFilenameWithComponent(file);
+        Pair<Version, IndexComponent> pair = IndexDescriptor.fromFile(file);
 
-        assertEquals(Version.AA, pair.left.version);
-        assertEquals(descriptor, pair.left.descriptor);
+        assertEquals(Version.AA, pair.left);
         assertEquals("test_index", pair.right.index);
         assertEquals(IndexComponent.Type.META, pair.right.type);
     }
@@ -110,10 +108,9 @@ public class IndexDescriptorTest
 
         assertTrue(file.exists());
 
-        Pair<IndexDescriptor, IndexComponent> pair = IndexDescriptor.fromFilenameWithComponent(file);
+        Pair<Version, IndexComponent> pair = IndexDescriptor.fromFile(file);
 
-        assertEquals(Version.AA, pair.left.version);
-        assertEquals(descriptor, pair.left.descriptor);
+        assertEquals(Version.AA, pair.left);
         assertEquals("test_index", pair.right.index);
         assertEquals(IndexComponent.Type.META, pair.right.type);
         // The file should have been renamed to the correct AA per-index format
@@ -126,10 +123,9 @@ public class IndexDescriptorTest
     {
         File file = new File(descriptor.baseFilename() + "-SAI+ba+GroupMeta.db");
 
-        Pair<IndexDescriptor, IndexComponent> pair = IndexDescriptor.fromFilenameWithComponent(file);
+        Pair<Version, IndexComponent> pair = IndexDescriptor.fromFile(file);
 
-        assertEquals(Version.BA, pair.left.version);
-        assertEquals(descriptor, pair.left.descriptor);
+        assertEquals(Version.BA, pair.left);
         assertEquals(IndexComponent.Type.GROUP_META, pair.right.type);
     }
 
@@ -138,10 +134,9 @@ public class IndexDescriptorTest
     {
         File file = new File(descriptor.baseFilename() + "-SAI+ba+test_index+Meta.db");
 
-        Pair<IndexDescriptor, IndexComponent> pair = IndexDescriptor.fromFilenameWithComponent(file);
+        Pair<Version, IndexComponent> pair = IndexDescriptor.fromFile(file);
 
-        assertEquals(Version.BA, pair.left.version);
-        assertEquals(descriptor, pair.left.descriptor);
+        assertEquals(Version.BA, pair.left);
         assertEquals("test_index", pair.right.index);
         assertEquals(IndexComponent.Type.META, pair.right.type);
     }

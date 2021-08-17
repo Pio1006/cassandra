@@ -21,7 +21,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.V1SSTableContext;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -35,8 +34,8 @@ import org.apache.lucene.store.IndexInput;
  */
 public abstract class SSTableContext extends SharedCloseableImpl
 {
-    protected final SSTableReader sstable;
-    protected final IndexDescriptor indexDescriptor;
+    public final SSTableReader sstable;
+    public final IndexDescriptor indexDescriptor;
 
     protected SSTableContext(SSTableReader sstable, IndexDescriptor indexDescriptor, RefCounted.Tidy tidy)
     {
@@ -53,15 +52,11 @@ public abstract class SSTableContext extends SharedCloseableImpl
     }
 
     @SuppressWarnings("resource")
-    public static SSTableContext create(SSTableReader sstable)
+    public static SSTableContext create(SSTableReader sstable, IndexDescriptor indexDescriptor)
     {
-        // This is not strictly needed here but will be when we have more than one
-        // on-disk format
-        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
-
         // We currently only support the V1 per-sstable format but in future selection of
         // per-sstable format will be here
-        return V1SSTableContext.create(sstable);
+        return V1SSTableContext.create(sstable, indexDescriptor);
     }
 
     @Override
@@ -80,29 +75,9 @@ public abstract class SSTableContext extends SharedCloseableImpl
 
     public abstract boolean isColumnIndexEmpty(String indexName);
 
-    public abstract void validatePerColumnComponents(String indexName, boolean isLiteral);
-
     public abstract void deleteColumnIndex(String indexName);
 
     public abstract PerIndexFiles perIndexFiles(ColumnContext columnContext);
-
-    public SSTableReader sstable()
-    {
-        return sstable;
-    }
-
-    /**
-     * @return descriptor of attached sstable
-     */
-    public Descriptor descriptor()
-    {
-        return sstable.descriptor;
-    }
-
-    public IndexDescriptor indexDescriptor()
-    {
-        return indexDescriptor;
-    }
 
     public IndexInput openInput(IndexComponent indexComponent)
     {

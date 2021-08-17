@@ -96,10 +96,8 @@ public class V1SSTableContext extends SSTableContext
         this.keyFetcher = copy.keyFetcher;
     }
 
-    public static SSTableContext create(SSTableReader sstable)
+    public static SSTableContext create(SSTableReader sstable, IndexDescriptor indexDescriptor)
     {
-        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
-
         Ref<? extends SSTableReader> sstableRef = null;
         FileHandle token = null, offset = null;
         LongArray.Factory tokenReaderFactory, offsetReaderFactory;
@@ -115,8 +113,8 @@ public class V1SSTableContext extends SSTableContext
                 throw new IllegalStateException("Couldn't acquire reference to the sstable: " + sstable);
             }
 
-            token = indexDescriptor.createFileHandle(IndexComponent.TOKEN_VALUES, false);
-            offset  = indexDescriptor.createFileHandle(IndexComponent.OFFSETS_VALUES, false);
+            token = indexDescriptor.createFileHandle(IndexComponent.TOKEN_VALUES);
+            offset  = indexDescriptor.createFileHandle(IndexComponent.OFFSETS_VALUES);
 
             tokenReaderFactory = new BlockPackedReader(token, IndexComponent.TOKEN_VALUES, source);
             offsetReaderFactory = new MonotonicBlockPackedReader(offset, IndexComponent.OFFSETS_VALUES, source);
@@ -165,12 +163,6 @@ public class V1SSTableContext extends SSTableContext
     public boolean isColumnIndexEmpty(String indexName)
     {
         return indexDescriptor.isColumnIndexEmpty(indexName);
-    }
-
-    @Override
-    public void validatePerColumnComponents(String indexName, boolean isLiteral)
-    {
-        //TODO Complete
     }
 
     @Override

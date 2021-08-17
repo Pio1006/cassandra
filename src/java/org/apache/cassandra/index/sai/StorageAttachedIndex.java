@@ -591,12 +591,11 @@ public class StorageAttachedIndex implements Index
             //   2. The SSTable is not marked compacted
 
             //   3. The column index does not have a completion marker
-            //TODO Fix
-//            if (!view.containsSSTable(sstable) && !sstable.isMarkedCompacted() &&
-//                    !IndexComponents.isColumnIndexComplete(sstable.descriptor, context.getIndexName()))
-//            {
-//                nonIndexed.add(sstable);
-//            }
+            if (!view.containsSSTable(sstable) && !sstable.isMarkedCompacted() &&
+                !IndexDescriptor.forSSTable(sstable.descriptor).isColumnIndexComplete(context.getIndexName()))
+            {
+                nonIndexed.add(sstable);
+            }
         }
 
         return nonIndexed;

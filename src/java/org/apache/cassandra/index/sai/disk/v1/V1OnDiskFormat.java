@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 
@@ -37,7 +38,9 @@ import org.apache.cassandra.index.sai.disk.v1.writers.SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
+import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.lucene.store.IndexInput;
 
 import static org.apache.cassandra.index.sai.StorageAttachedIndex.SEGMENT_BUILD_MEMORY_LIMITER;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -81,5 +84,32 @@ public class V1OnDiskFormat implements OnDiskFormat
         }
 
         return new MemtableIndexWriter(index.getContext().getPendingMemtableIndex(tracker), indexDescriptor, index.getContext(), rowMapping, compressionParams);
+    }
+
+    @Override
+    public void validateComponent(IndexDescriptor indexDescriptor, IndexComponent indexComponent, boolean checksum) throws IOException
+    {
+        File file = indexDescriptor.fileFor(indexComponent);
+        if (file.exists() && file.length() > 0)
+        {
+            try (IndexInput input = indexDescriptor.openInput(indexComponent))
+            {
+                if (checksum)
+                    SAICodecUtils.validateChecksum(input);
+                else
+                    SAICodecUtils.validate(input);
+            }
+            catch (IOException e)
+            {
+                if (logger.isDebugEnabled())
+                {
+                    logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
+                                 (checksum ? "Checksum validation" : "Validation"),
+                                 indexComponent,
+                                 indexDescriptor.descriptor);
+                }
+                throw e;
+            }
+        }
     }
 }

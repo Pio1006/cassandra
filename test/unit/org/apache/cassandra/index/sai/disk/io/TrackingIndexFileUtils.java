@@ -44,14 +44,6 @@ public class TrackingIndexFileUtils extends IndexFileUtils
     public TrackingIndexFileUtils(SequentialWriterOption writerOption)
     {
         setWriterOptions(writerOption);
-
-
-
-
-
-
-
-
     }
 
     @Override
@@ -60,15 +52,6 @@ public class TrackingIndexFileUtils extends IndexFileUtils
         TrackingIndexInput input = new TrackingIndexInput(super.openInput(handle));
         openInputs.put(input, Throwables.getStackTraceAsString(new RuntimeException("Input created")));
         return input;
-    }
-
-    @Override
-    public IndexInput openBlockingInput(IndexDescriptor indexDescriptor, IndexComponent.Type type)
-    {
-        TrackingIndexInput input = new TrackingIndexInput(super.openBlockingInput(indexDescriptor, type));
-        openInputs.put(input, Throwables.getStackTraceAsString(new RuntimeException("Blocking input created")));
-        return input;
-
     }
 
     public Map<IndexInput, String> getOpenInputs()

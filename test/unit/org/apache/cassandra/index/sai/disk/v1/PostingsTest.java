@@ -21,18 +21,18 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.VersionedIndex;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.readers.PostingsReader;
 import org.apache.cassandra.index.sai.disk.v1.writers.PostingsWriter;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.ArrayPostingList;
-import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.lucene.store.IndexInput;
@@ -42,21 +42,32 @@ public class PostingsTest extends NdiRandomizedTest
     @Rule
     public final ExpectedException expectedException = ExpectedException.none();
 
+    private IndexDescriptor indexDescriptor;
+    private String index;
+    private IndexComponent postingLists;
+
+    @Before
+    public void setup() throws Throwable
+    {
+        indexDescriptor = newIndexDescriptor();
+        index = newIndex();
+        postingLists = IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index);
+    }
+
     @Test
     public void testSingleBlockPostingList() throws Exception
     {
-        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int blockSize = 1 << between(3, 8);
         final ArrayPostingList expectedPostingList = new ArrayPostingList(new int[]{ 10, 20, 30, 40, 50, 60 });
 
         long postingPointer;
-        try (PostingsWriter writer = new PostingsWriter(versionedIndex, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, index, blockSize, false))
         {
             postingPointer = writer.write(expectedPostingList);
             writer.complete();
         }
 
-        IndexInput input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+        IndexInput input = indexDescriptor.openInput(postingLists);
         SAICodecUtils.validate(input);
         input.seek(postingPointer);
 
@@ -81,7 +92,7 @@ public class PostingsTest extends NdiRandomizedTest
         reader.close();
         assertEquals(reader.size(), listener.decodes);
 
-        input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+        input = indexDescriptor.openInput(postingLists);
         listener = new CountingPostingListEventListener();
         reader = new PostingsReader(input, postingPointer, listener);
 
@@ -98,14 +109,13 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testMultiBlockPostingList() throws Exception
     {
-        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int numPostingLists = 1 << between(1, 5);
         final int blockSize = 1 << between(5, 10);
         final int numPostings = between(1 << 11, 1 << 15);
         final ArrayPostingList[] expected = new ArrayPostingList[numPostingLists];
         final long[] postingPointers = new long[numPostingLists];
 
-        try (PostingsWriter writer = new PostingsWriter(versionedIndex, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, index, blockSize, false))
         {
             for (int i = 0; i < numPostingLists; ++i)
             {
@@ -117,14 +127,14 @@ public class PostingsTest extends NdiRandomizedTest
             writer.complete();
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS))
+        try (IndexInput input = indexDescriptor.openInput(postingLists))
         {
             SAICodecUtils.validate(input);
         }
 
         for (int i = 0; i < numPostingLists; ++i)
         {
-            IndexInput input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+            IndexInput input = indexDescriptor.openInput(postingLists);
             input.seek(postingPointers[i]);
             final ArrayPostingList expectedPostingList = expected[i];
             final PostingsReader.BlocksSummary summary = assertBlockSummary(blockSize, expectedPostingList, input);
@@ -142,7 +152,7 @@ public class PostingsTest extends NdiRandomizedTest
             }
 
             // test skipping to the last block
-            input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+            input = indexDescriptor.openInput(postingLists);
             try (PostingsReader reader = new PostingsReader(input, postingPointers[i], listener))
             {
                 long tokenToAdvance = -1;
@@ -165,20 +175,19 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testAdvance() throws Exception
     {
-        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int blockSize = 4; // 4 postings per FoR block
         final int maxSegmentRowID = 30;
         final int[] postings = IntStream.range(0, maxSegmentRowID).toArray(); // 30 postings = 7 FoR blocks + 1 VLong block
         final ArrayPostingList expected = new ArrayPostingList(postings);
 
         long fp;
-        try (PostingsWriter writer = new PostingsWriter(versionedIndex, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, index, blockSize, false))
         {
             fp = writer.write(expected);
             writer.complete();
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS))
+        try (IndexInput input = indexDescriptor.openInput(postingLists))
         {
             SAICodecUtils.validate(input);
             input.seek(fp);
@@ -193,20 +202,19 @@ public class PostingsTest extends NdiRandomizedTest
         }
 
         // exact advance
-        testAdvance(versionedIndex, fp, expected, new int[]{ 3, 7, 11, 15, 19 });
+        testAdvance(fp, expected, new int[]{ 3, 7, 11, 15, 19 });
         // non-exact advance
-        testAdvance(versionedIndex, fp, expected, new int[]{ 2, 6, 12, 17, 25 });
+        testAdvance(fp, expected, new int[]{ 2, 6, 12, 17, 25 });
 
         // exact advance
-        testAdvance(versionedIndex, fp, expected, new int[]{ 3, 5, 7, 12 });
+        testAdvance(fp, expected, new int[]{ 3, 5, 7, 12 });
         // non-exact advance
-        testAdvance(versionedIndex, fp, expected, new int[]{ 2, 7, 9, 11 });
+        testAdvance(fp, expected, new int[]{ 2, 7, 9, 11 });
     }
 
     @Test
     public void testAdvanceOnRandomizedData() throws IOException
     {
-        final VersionedIndex versionedIndex = newIndexDescriptor();
         final int blockSize = 4;
         final int numPostings = nextInt(64, 64_000);
         final int[] postings = randomPostings(numPostings);
@@ -214,13 +222,13 @@ public class PostingsTest extends NdiRandomizedTest
         final ArrayPostingList expected = new ArrayPostingList(postings);
 
         long fp;
-        try (PostingsWriter writer = new PostingsWriter(versionedIndex, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, index, blockSize, false))
         {
             fp = writer.write(expected);
             writer.complete();
         }
 
-        try (IndexInput input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS))
+        try (IndexInput input = indexDescriptor.openInput(postingLists))
         {
             SAICodecUtils.validate(input);
             input.seek(fp);
@@ -234,14 +242,13 @@ public class PostingsTest extends NdiRandomizedTest
             }
         }
 
-        testAdvance(versionedIndex, fp, expected, postings);
+        testAdvance(fp, expected, postings);
     }
 
     @Test
     public void testNullPostingList() throws IOException
     {
-        final VersionedIndex versionedIndex = newIndexDescriptor();
-        try (PostingsWriter writer = new PostingsWriter(versionedIndex, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, index, false))
         {
             expectedException.expect(IllegalArgumentException.class);
             writer.write(null);
@@ -252,8 +259,7 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testEmptyPostingList() throws IOException
     {
-        final VersionedIndex versionedIndex = newIndexDescriptor();
-        try (PostingsWriter writer = new PostingsWriter(versionedIndex, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, index, false))
         {
             expectedException.expect(IllegalArgumentException.class);
             writer.write(new ArrayPostingList(new int[0]));
@@ -263,19 +269,18 @@ public class PostingsTest extends NdiRandomizedTest
     @Test
     public void testNonAscendingPostingList() throws IOException
     {
-        final VersionedIndex versionedIndex = newIndexDescriptor();
-        try (PostingsWriter writer = new PostingsWriter(versionedIndex, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, index, false))
         {
             expectedException.expect(IllegalArgumentException.class);
             writer.write(new ArrayPostingList(new int[]{ 1, 0 }));
         }
     }
 
-    private void testAdvance(VersionedIndex versionedIndex, long fp, ArrayPostingList expected, int[] targetIDs) throws IOException
+    private void testAdvance(long fp, ArrayPostingList expected, int[] targetIDs) throws IOException
     {
         expected.reset();
         final CountingPostingListEventListener listener = new CountingPostingListEventListener();
-        PostingsReader reader = openReader(versionedIndex, fp, listener);
+        PostingsReader reader = openReader(fp, listener);
         for (int i = 0; i < 2; ++i)
         {
             assertEquals(expected.nextPosting(), reader.nextPosting());
@@ -300,9 +305,9 @@ public class PostingsTest extends NdiRandomizedTest
         reader.close();
     }
 
-    private PostingsReader openReader(VersionedIndex versionedIndex, long fp, QueryEventListener.PostingListEventListener listener) throws IOException
+    private PostingsReader openReader(long fp, QueryEventListener.PostingListEventListener listener) throws IOException
     {
-        IndexInput input = IndexFileUtils.instance.openBlockingInput(versionedIndex, IndexComponent.Type.POSTING_LISTS);
+        IndexInput input = indexDescriptor.openInput(postingLists);
         input.seek(fp);
         return new PostingsReader(input, fp, listener);
     }

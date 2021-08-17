@@ -54,12 +54,9 @@ public abstract class IndexSearcher implements Closeable
 
     IndexSearcher(Segment segment)
     {
-//        this.rowIdToTokenFactory = segment.segmentRowIdToTokenFactory;
-//        this.rowIdToOffsetFactory = segment.segmentRowIdToOffsetFactory;
-//        this.keyFetcher = segment.keyFetcher;
-        this.rowIdToTokenFactory = null;
-        this.rowIdToOffsetFactory = null;
-        this.keyFetcher = null;
+        this.rowIdToTokenFactory = segment.segmentRowIdToTokenFactory;
+        this.rowIdToOffsetFactory = segment.segmentRowIdToOffsetFactory;
+        this.keyFetcher = segment.keyFetcher;
         this.indexFiles = segment.indexFiles;
         this.metadata = segment.metadata;
     }

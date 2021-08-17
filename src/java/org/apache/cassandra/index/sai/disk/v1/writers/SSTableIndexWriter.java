@@ -41,7 +41,6 @@ import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMerger;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
-import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -335,10 +334,10 @@ public class SSTableIndexWriter implements ColumnIndexWriter
         if (segments.isEmpty())
             return;
 
-        try (final MetadataWriter writer = new MetadataWriter(indexDescriptor.createOutput(IndexComponent.create(IndexComponent.Type.META,
-                                                                                                                 columnContext.getIndexName()),
-                                                                                           false,
-                                                                                           false)))
+        try (final MetadataWriter writer = new MetadataWriter(indexDescriptor.openOutput(IndexComponent.create(IndexComponent.Type.META,
+                                                                                                               columnContext.getIndexName()),
+                                                                                         false,
+                                                                                         false)))
         {
             SegmentMetadata.write(writer, segments, null);
         }

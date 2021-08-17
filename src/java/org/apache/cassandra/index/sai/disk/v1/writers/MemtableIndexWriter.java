@@ -178,7 +178,7 @@ public class MemtableIndexWriter implements ColumnIndexWriter
         SegmentMetadata metadata = new SegmentMetadata(0, numRows, terms.getMinSSTableRowId(), terms.getMaxSSTableRowId(),
                                                        minKey, maxKey, terms.getMinTerm(), terms.getMaxTerm(), indexMetas);
 
-        try (MetadataWriter writer = new MetadataWriter(indexDescriptor.createOutput(meta, false, false)))
+        try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openOutput(meta, false, false)))
         {
             SegmentMetadata.write(writer, Collections.singletonList(metadata), null);
         }

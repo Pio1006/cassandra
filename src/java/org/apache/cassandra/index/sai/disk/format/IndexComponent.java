@@ -28,7 +28,7 @@ import org.apache.cassandra.io.sstable.Component;
 
 public class IndexComponent extends Component
 {
-    private static final EnumSet<IndexComponent.Type> TYPES = EnumSet.allOf(IndexComponent.Type.class);
+    public static final EnumSet<IndexComponent.Type> TYPES = EnumSet.allOf(IndexComponent.Type.class);
 
     public enum Type
     {

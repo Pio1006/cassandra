@@ -40,4 +40,6 @@ public interface OnDiskFormat
                                             LifecycleNewTracker tracker,
                                             RowMapping rowMapping,
                                             CompressionParams compressionParams);
+
+    public void validateComponent(IndexDescriptor indexDescriptor, IndexComponent indexComponent, boolean checksum) throws IOException;
 }
