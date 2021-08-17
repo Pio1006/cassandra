@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -33,6 +34,7 @@ import java.util.TreeSet;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
+import com.google.common.primitives.UnsignedBytes;
 
 import com.carrotsearch.hppc.IntLongHashMap;
 import org.apache.cassandra.index.sai.disk.PostingList;
@@ -177,6 +179,28 @@ public class BlockIndexReader
     }
 
     public PostingList traverse(ByteComparable start,
+                                boolean startExclusive,
+                                ByteComparable end,
+                                boolean endExclusive) throws IOException
+    {
+        byte[] startBytes = ByteSourceInverse.readBytes(start.asComparableBytes(ByteComparable.Version.OSS41));
+        byte[] endBytes = ByteSourceInverse.readBytes(end.asComparableBytes(ByteComparable.Version.OSS41));
+
+        ByteComparable realStart = start;
+        ByteComparable realEnd = end;
+
+        if (startExclusive)
+        {
+            realStart = nudge(start, startBytes.length - 1);
+        }
+        if (endExclusive)
+        {
+            realEnd = nudgeReverse(end, endBytes.length - 1);
+        }
+        return traverse(realStart, realEnd);
+    }
+
+    public PostingList traverse(ByteComparable start,
                                 ByteComparable end) throws IOException
     {
         SortedSet<Integer> nodeIDs = traverseForNodeIDs(start, end);
@@ -263,7 +287,7 @@ public class BlockIndexReader
             PostingList firstList = filterLeaf(minNodeID,
                                                startBytes,
                                                endBytes,
-                                               false);//(minNodeID, startBytes, false);
+                                               false);
             if (firstList != null)
             {
                 postingLists.add(firstList.peekable());
@@ -279,6 +303,8 @@ public class BlockIndexReader
         {
             endOrd = leafNodeIDToLeafOrd.size();
             NodeIDLeafFP pair = leafNodeIDToLeafOrd.get(endOrd - 1);
+
+            // there is no order map for blocks with all the same value
             assert !leafToOrderMapFP.containsKey(pair.leaf);
         }
         else
@@ -371,11 +397,12 @@ public class BlockIndexReader
                                   BytesRef end,
                                   boolean exclusive) throws IOException
     {
+        assert nodeID >= meta.numLeaves; // assert that it's a leaf node id
+
         final int leaf = (int) this.nodeIDToLeaf.get(nodeID);
 
         // TODO: check if the leaf is all the same value
         //       if true, there's no need to filter
-
         final Long orderMapFP;
         if (leafToOrderMapFP.containsKey(leaf))
         {
@@ -418,8 +445,6 @@ public class BlockIndexReader
 
         if (cardinality <= 0) return null;
 
-
-
         if (startIdx == -1) startIdx = this.leafSize;
 
         final int startIdxFinal = startIdx;
@@ -436,6 +461,8 @@ public class BlockIndexReader
         // get the row id's term ordinal to compare against the startOrdinal
         (postingsOrd, rowID) -> {
             int ord = postingsOrd;
+
+            // if there's no order map use the postings order
             if (orderMapFP != null)
             {
                 ord = (int) this.orderMapReader.get(this.orderMapRandoInput, orderMapFP, postingsOrd);
@@ -460,7 +487,7 @@ public class BlockIndexReader
                                                             new BKDReader.SimpleBound(maxLeaf, false));
         TreeSet<Integer> resultNodeIDs = new TreeSet();
 
-        BinaryTreeIndex index = new BinaryTreeIndex(meta.numLeaves);
+        BinaryTreeIndex index = binaryTreeIndex();
 
         collectPostingLists(0,
                              nodeIDToLeaf.size() - 1,
@@ -607,9 +634,9 @@ public class BlockIndexReader
                     {
                         maxLeafOrdinal = maxLeaf;
                     }
-                    System.out.println("maxFoundTerm=" + NumericUtils.sortableBytesToInt(bytes, 0) +
-                                       " minLeaf=" + minLeaf +
-                                       " maxLeaf=" + maxLeaf);
+//                    System.out.println("maxFoundTerm=" + NumericUtils.sortableBytesToInt(bytes, 0) +
+//                                       " minLeaf=" + minLeaf +
+//                                       " maxLeaf=" + maxLeaf);
                 }
                 else
                 {
@@ -857,4 +884,118 @@ public class BlockIndexReader
             }
         }
     }
+
+    public static void main(String[] args)
+    {
+        byte[] bytes = new byte[] {-1, -1, -1, -1};
+        ByteComparable bc = nudgeReverse(ByteComparable.fixedLength(bytes), bytes.length - 1);
+
+        ByteSource byteSource = bc.asComparableBytes(ByteComparable.Version.OSS41);
+        int length = 0;
+        // gather the term bytes from the byteSource
+        int[] ints = new int[4];
+        while (true)
+        {
+            final int val = byteSource.next();
+            if (val != ByteSource.END_OF_STREAM)
+            {
+                System.out.println("val="+val);
+                ints[length] = val;
+
+                ++length;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        System.out.println("ints=" + Arrays.toString(ints));
+    }
+
+    public static ByteComparable nudge(ByteComparable value, int nudgeAt)
+    {
+        return version -> new ByteSource()
+        {
+            private final ByteSource v = value.asComparableBytes(version);
+            private int cur = 0;
+
+            @Override
+            public int next()
+            {
+                int b = ByteSource.END_OF_STREAM;
+                if (cur <= nudgeAt)
+                {
+                    b = v.next();
+                    if (cur == nudgeAt)
+                    {
+                        if (b < 255)
+                            ++b;
+                        else
+                            return b;  // can't nudge here, increase next instead (eventually will be -1)
+                    }
+                }
+                ++cur;
+                return b;
+            }
+        };
+    }
+
+    public static ByteComparable nudgeReverse(ByteComparable value, int nudgeAt)
+    {
+        return version -> new ByteSource()
+        {
+            private final ByteSource v = value.asComparableBytes(version);
+            private int cur = 0;
+
+            @Override
+            public int next()
+            {
+                int b = ByteSource.END_OF_STREAM;
+                if (cur <= nudgeAt)
+                {
+                    b = v.next();
+                    if (cur == nudgeAt)
+                    {
+                        if (b > 0)
+                            --b;
+                        else
+                            return ByteSource.END_OF_STREAM;  // can't nudge here, increase next instead (eventually will be -1)
+                    }
+                }
+                ++cur;
+                return b;
+            }
+        };
+    }
+
+//    public static ByteComparable nudge(ByteComparable value, int nudgeAt)
+//    {
+//        return (version) -> {
+//            return new ByteSource()
+//            {
+//                private final ByteSource v = value.asComparableBytes(version);
+//                private int cur = 0;
+//
+//                public int next()
+//                {
+//                    int b = -1;
+//                    if (this.cur <= nudgeAt)
+//                    {
+//                        b = this.v.next();
+//                        if (this.cur == nudgeAt)
+//                        {
+//                            if (b >= 255)
+//                            {
+//                                return b;
+//                            }
+//                            ++b;
+//                        }
+//                    }
+//                    ++this.cur;
+//                    return b;
+//                }
+//            };
+//        };
+//    }
 }

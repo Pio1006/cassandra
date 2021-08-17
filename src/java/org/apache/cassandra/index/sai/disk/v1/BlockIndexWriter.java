@@ -47,12 +47,18 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FutureArrays;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.DirectWriter;
 
 import static org.apache.cassandra.index.sai.disk.v1.BlockIndexReader.fixedLength;
 import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
 
+/**
+ * Buffer 2 blocks at a time a determine if the block values are all the same
+ * to continue writing a larger posting list, or the usual 1k block size.
+ *
+ * The trie stores the min block values and the payload is the min and max leaf ids of the term.
+ * When a term has a large posting list the min and max leaf id's are different.
+ */
 public class BlockIndexWriter
 {
     public static final int LEAF_SIZE = 3;
@@ -72,7 +78,10 @@ public class BlockIndexWriter
     final BytesRefBuilder lastTermBuilder = new BytesRefBuilder();
 
     private final PostingsWriter postingsWriter;
+
+    // leaf id to postings file pointer
     private final TreeMap<Integer,Long> leafToPostingsFP = new TreeMap();
+    // leaf id to block order map file pointer
     private final TreeMap<Integer,Long> leafToOrderMapFP = new TreeMap();
     final RangeSet<Integer> multiBlockLeafRanges = TreeRangeSet.create();
     final BytesRefBuilder lastAddedTerm = new BytesRefBuilder();
@@ -152,6 +161,9 @@ public class BlockIndexWriter
         public final IntLongHashMap nodeIDPostingsFP;
         public final RangeSet<Integer> multiBlockLeafOrdinalRanges;
         public final BitSet leafValuesSame;
+
+        // there can be multiple postings for a node id if the
+        // edges are same value multi block postings
         public final TreeMultimap<Integer, Long> multiNodeIDToPostingsFP;
 
         public BlockIndexMeta(long orderMapFP,
@@ -187,6 +199,7 @@ public class BlockIndexWriter
         int distinctCount = 0;
         int start = 0;
         int leafIdx = 0;
+
         // write distinct min block terms and the min and max leaf id's encoded as a long
         BytesRefBuilder lastTerm = new BytesRefBuilder();
         for (leafIdx = 0; leafIdx < blockMinValues.size(); leafIdx++)
@@ -230,7 +243,6 @@ public class BlockIndexWriter
             if (leafIdx == blockMinValues.size() - 1 && leafIdx > 0)
             {
                 final int endLeaf = leafIdx;
-                //final BytesRef minValue = blockMinValues.get(leafIdx);
                 BytesRef prevMinValue = blockMinValues.get(leafIdx - 1);
                 //System.out.println("termsIndexWriter write2 prevMinValue="+prevMinValue.utf8ToString()+" start="+start+" endLeaf="+endLeaf);
                 long encodedLong = (((long)start) << 32) | (endLeaf & 0xffffffffL);
@@ -339,15 +351,13 @@ public class BlockIndexWriter
             leafPointerToNodeID.put(entry.getValue(), entry.getKey());
         }
 
-        TreeMap<Integer,Integer> leafToNodeID = new TreeMap<>();
+        final TreeMap<Integer,Integer> leafToNodeID = new TreeMap<>();
 
         int ordinal = 0;
         for (Map.Entry<Long, Integer> entry : leafPointerToNodeID.entrySet())
         {
             nodeIDToLeafOrdinal.put(entry.getValue(), ordinal);
-
             leafToNodeID.put(ordinal, entry.getValue());
-
             ordinal++;
         }
 
@@ -370,7 +380,8 @@ public class BlockIndexWriter
             {
                 final Long postingsFP = leafToPostingsFP.get(leafOrdinal);
 
-                if (postingsFP != null) // postingsFP may be null when there's multi-block postings
+                // postingsFP may be null with same value multi-block postings
+                if (postingsFP != null)
                 {
                     nodeIDPostingsFP.put(nodeID, postingsFP);
                 }
@@ -404,8 +415,7 @@ public class BlockIndexWriter
                                        leafToNodeID);
 
         final IndexOutput bigPostingsOut = directory.createOutput("bigpostings", IOContext.DEFAULT);
-        //final long multiLevelPostingsFP = multiLevelPostingsWriter.finish(bigPostingsOut);
-        final TreeMultimap<Integer, Long> nodeIDToPostingsFP = multiLevelPostingsWriter.finish(bigPostingsOut);
+        final TreeMultimap<Integer, Long> nodeIDToMultilevelPostingsFP = multiLevelPostingsWriter.finish(bigPostingsOut);
 
 
         leafPostingsInput.close();
@@ -423,7 +433,7 @@ public class BlockIndexWriter
                                   nodeIDPostingsFP,
                                   multiBlockLeafRanges,
                                   leafValuesSame,
-                                  nodeIDToPostingsFP);
+                                  nodeIDToMultilevelPostingsFP);
     }
 
     public void add(ByteComparable term, long rowID) throws IOException
@@ -482,9 +492,7 @@ public class BlockIndexWriter
 
         //System.out.println("write leafIndex=" + leafOrdinal + " prefix=" + prefix + " len=" + len);
         currentBuffer.scratchOut.writeBytes(termBuilder.get().bytes, prefix, len);
-
         currentBuffer.postings[currentBuffer.leafOrdinal] = rowID;
-
         currentBuffer.leafOrdinal++;
 
         if (currentBuffer.leafOrdinal == LEAF_SIZE)

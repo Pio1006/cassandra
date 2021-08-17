@@ -21,21 +21,16 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
@@ -44,52 +39,30 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.carrotsearch.hppc.IntLongHashMap;
-import jnr.ffi.annotations.In;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.PostingList;
-import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.packed.PackedLongValues;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 
-/**
- * Writes auxiliary posting lists for bkd tree nodes. If a node has a posting list attached, it will contain every row
- * id
- * from all leaves reachable from that node.
- *
- * Writer is stateful, because it needs to collect data from bkd index data structure first to find set of eligible
- * nodes and leaf nodes reachable from them.
- *
- * This is an optimised writer for 1-dim points, where we know that leaf blocks are written in value order (in this
- * order we pass them to the {@link BKDWriter}). That allows us to skip reading the leaves, instead just order leaf
- * blocks by their offset in the index file, and correlate them with buffered posting lists. We can't make this
- * assumption for multi-dim case.
- */
 public class MultiLevelPostingsWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    //private final TreeMap<Long, Integer> leafFPToNodeID = new TreeMap<>(Long::compareTo);
     private final Multimap<Integer, Integer> nodeToChildLeaves = HashMultimap.create();
 
     final TreeSet<Integer> leafNodeIDs = new TreeSet<>();
-
     private final IndexWriterConfig config;
     final TreeMap<Integer,Integer> nodeIDToLeafOrdinal;
-    // private final IndexComponents components;
     final IntLongHashMap nodeIDPostingsFP;
     final IndexInput leafPostingsInput;
     final int numLeaves;
-    int numNonLeafPostings = 0;
-    int numLeafPostings = 0;
     final RangeSet<Integer> multiBlockLeafRanges;
     final TreeMap<Integer,Integer> leafToNodeID;
+    private int numNonLeafPostings = 0;
 
     public MultiLevelPostingsWriter(IndexInput leafPostingsInput,
                                     IndexWriterConfig config,
@@ -141,7 +114,7 @@ public class MultiLevelPostingsWriter
                 assert n >= numLeaves;
             }
 
-            List<Integer> leafNodeIDsCopy = new ArrayList<>(leafNodeIDs);
+            final List<Integer> leafNodeIDsCopy = new ArrayList<>(leafNodeIDs);
 
             assert nodeIDToLeafOrdinal.containsKey(nodeID);
 

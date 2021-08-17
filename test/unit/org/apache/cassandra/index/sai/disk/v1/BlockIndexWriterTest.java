@@ -218,13 +218,20 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
                                                            postingsInput,
                                                            meta);
 
-            PostingList postings = reader.traverse(ByteComparable.fixedLength("cc".getBytes(StandardCharsets.UTF_8)),
-                                                   ByteComparable.fixedLength("zzzzz".getBytes(StandardCharsets.UTF_8)));
+//            PostingList postings = reader.traverse(ByteComparable.fixedLength("aa".getBytes(StandardCharsets.UTF_8)),
+//                                                   ByteComparable.fixedLength("ab".getBytes(StandardCharsets.UTF_8)));
+
+            PostingList postings = reader.traverse(ByteComparable.fixedLength("aaabbb".getBytes(StandardCharsets.UTF_8)),
+                                                   true,
+                                                   ByteComparable.fixedLength("gggaaaddd".getBytes(StandardCharsets.UTF_8)),
+                                                   true);
+
+
             while (true)
             {
                 final long rowID = postings.nextPosting();
                 if (rowID == PostingList.END_OF_STREAM) break;
-                System.out.println("rowid=" + rowID);
+                System.out.println("testSameTerms rowid=" + rowID);
             }
         }
 
@@ -295,7 +302,7 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
     public void doRandomTest() throws Exception
     {
         List<Pair<ByteComparable, IntArrayList>> list = new ArrayList();
-        int numValues = nextInt(5, 100);
+        int numValues = nextInt(5, 200);
         final BKDTreeRamBuffer buffer = new BKDTreeRamBuffer(1, Integer.BYTES);
 
         int maxRowID = -1;
