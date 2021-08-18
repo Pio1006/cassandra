@@ -135,7 +135,8 @@ public class ColumnContext
                          ClusteringComparator clusteringComparator,
                          ColumnMetadata column,
                          IndexMetadata config,
-                         IndexWriterConfig indexWriterConfig)
+                         IndexWriterConfig indexWriterConfig,
+                         ColumnQueryMetrics columnQueryMetrics)
     {
         this.keyspace = keyspace;
         this.table = table;
@@ -146,8 +147,8 @@ public class ColumnContext
         this.config = config;
         this.viewManager = null;
         this.indexMetrics = null;
-        this.columnQueryMetrics = null;
         this.indexWriterConfig = indexWriterConfig;
+        this.columnQueryMetrics = columnQueryMetrics;
     }
 
     public ColumnContext(TableMetadata table, ColumnMetadata column)

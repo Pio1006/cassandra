@@ -74,7 +74,7 @@ public class Segment implements Closeable
         this.metadata = metadata;
         this.columnType = columnContext.getValidator();
 
-        this.index = IndexSearcher.open(columnContext.isLiteral(), this, columnContext.getColumnQueryMetrics());
+        this.index = IndexSearcher.open(this, columnContext);
     }
 
     @VisibleForTesting

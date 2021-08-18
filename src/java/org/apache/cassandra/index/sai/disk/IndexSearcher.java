@@ -25,6 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.v1.Segment;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
@@ -48,33 +49,25 @@ public abstract class IndexSearcher implements Closeable
     private final LongArray.Factory rowIdToTokenFactory;
     private final LongArray.Factory rowIdToOffsetFactory;
     private final V1SSTableContext.KeyFetcher keyFetcher;
+
     final PerIndexFiles indexFiles;
-
     final SegmentMetadata metadata;
+    final ColumnContext columnContext;
 
-    IndexSearcher(Segment segment)
+    IndexSearcher(Segment segment, ColumnContext columnContext)
     {
         this.rowIdToTokenFactory = segment.segmentRowIdToTokenFactory;
         this.rowIdToOffsetFactory = segment.segmentRowIdToOffsetFactory;
         this.keyFetcher = segment.keyFetcher;
         this.indexFiles = segment.indexFiles;
         this.metadata = segment.metadata;
+        this.columnContext = columnContext;
     }
 
-    public static IndexSearcher open(boolean isString, Segment segment, ColumnQueryMetrics listener) throws IOException
+    public static IndexSearcher open(Segment segment, ColumnContext columnContext) throws IOException
     {
-        return isString ? open(segment, (QueryEventListener.TrieIndexEventListener) listener)
-                        : open(segment, (QueryEventListener.BKDIndexEventListener) listener);
-    }
-
-    public static InvertedIndexSearcher open(Segment segment, QueryEventListener.TrieIndexEventListener listener) throws IOException
-    {
-        return new InvertedIndexSearcher(segment, listener);
-    }
-
-    public static KDTreeIndexSearcher open(Segment segment, QueryEventListener.BKDIndexEventListener listener) throws IOException
-    {
-        return new KDTreeIndexSearcher(segment, listener);
+        return columnContext.isLiteral() ? new InvertedIndexSearcher(segment, columnContext)
+                                         : new KDTreeIndexSearcher(segment, columnContext);
     }
 
     /**

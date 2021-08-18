@@ -24,6 +24,7 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.readers.BKDReader;
@@ -45,9 +46,9 @@ public class KDTreeIndexSearcher extends IndexSearcher
     private final BKDReader bkdReader;
     private final QueryEventListener.BKDIndexEventListener perColumnEventListener;
 
-    KDTreeIndexSearcher(Segment segment, QueryEventListener.BKDIndexEventListener listener) throws IOException
+    KDTreeIndexSearcher(Segment segment, ColumnContext columnContext) throws IOException
     {
-        super(segment);
+        super(segment, columnContext);
 
         final long bkdPosition = metadata.getIndexRoot(IndexComponent.Type.KD_TREE);
         assert bkdPosition >= 0;
@@ -58,7 +59,7 @@ public class KDTreeIndexSearcher extends IndexSearcher
                                   bkdPosition,
                                   indexFiles.get(IndexComponent.Type.KD_TREE_POSTING_LISTS).sharedCopy(),
                                   postingsPosition);
-        perColumnEventListener = listener;
+        perColumnEventListener = (QueryEventListener.BKDIndexEventListener)columnContext.getColumnQueryMetrics();
 
     }
 
@@ -72,9 +73,8 @@ public class KDTreeIndexSearcher extends IndexSearcher
     @SuppressWarnings("resource")
     public RangeIterator search(Expression exp, SSTableQueryContext context, boolean defer)
     {
-        //TODO Fix logmessage
-//        if (logger.isTraceEnabled())
-//            logger.trace(indexComponents.logMessage("Searching on expression '{}'..."), exp);
+        if (logger.isTraceEnabled())
+            logger.trace(columnContext.logMessage("Searching on expression '{}'..."), exp);
 
         if (exp.getOp().isEqualityOrRange())
         {
@@ -87,9 +87,7 @@ public class KDTreeIndexSearcher extends IndexSearcher
         }
         else
         {
-            //TODO Fix logmessage
-//            throw new IllegalArgumentException(indexComponents.logMessage(indexComponents.logMessage("Unsupported expression during index query: " + exp)));
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException(columnContext.logMessage("Unsupported expression during index query: " + exp));
         }
     }
 

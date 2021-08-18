@@ -131,7 +131,7 @@ public class KDTreeIndexBuilder
         try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, SAITester.createColumnContext("test", Int32Type.instance), false))
         {
             Segment segment = new Segment(() -> segmentRowIdToToken, () -> segmentRowIdToOffset, keyFetcher, indexFiles, metadata, type);
-            KDTreeIndexSearcher searcher = IndexSearcher.open(segment, QueryEventListeners.NO_OP_BKD_LISTENER);
+            IndexSearcher searcher = IndexSearcher.open(segment, columnContext);
             assertThat(searcher, is(instanceOf(KDTreeIndexSearcher.class)));
             return (KDTreeIndexSearcher) searcher;
         }

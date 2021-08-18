@@ -184,11 +184,11 @@ public class InvertedIndexSearcherTest extends NdiRandomizedTest
                                                                     wrap(termsEnum.get(terms - 1).left),
                                                                     indexMetas);
 
-        try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, SAITester.createColumnContext("test", UTF8Type.instance), true))
+        try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, SAITester.createColumnContext(index, UTF8Type.instance), false))
         {
             final LongArray.Factory factory = () -> LongArrays.identity().build();
             Segment segment = new Segment(factory, factory, KEY_FETCHER, indexFiles, segmentMetadata, UTF8Type.instance);
-            final IndexSearcher searcher = IndexSearcher.open(segment, QueryEventListeners.NO_OP_TRIE_LISTENER);
+            final IndexSearcher searcher = IndexSearcher.open(segment, SAITester.createColumnContext(index, UTF8Type.instance));
             assertThat(searcher, is(instanceOf(InvertedIndexSearcher.class)));
             return searcher;
         }

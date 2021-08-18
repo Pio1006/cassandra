@@ -46,6 +46,7 @@ import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.readers.TermsReader;
+import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -112,9 +113,14 @@ public class SegmentFlushTest
         ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "column", UTF8Type.instance);
         IndexMetadata config = IndexMetadata.fromSchemaMetadata("index_name", IndexMetadata.Kind.CUSTOM, null);
 
-        ColumnContext context = new ColumnContext("ks", "cf",
-                                                  UTF8Type.instance, new ClusteringComparator(),
-                                                  column, config, IndexWriterConfig.defaultConfig("test"));
+        ColumnContext context = new ColumnContext("ks",
+                                                  "cf",
+                                                  UTF8Type.instance,
+                                                  new ClusteringComparator(),
+                                                  column,
+                                                  config,
+                                                  IndexWriterConfig.defaultConfig("test"),
+                                                  QueryEventListeners.NO_OP_TRIE_LISTENER);
 
         SSTableIndexWriter writer = new SSTableIndexWriter(indexDescriptor, context, StorageAttachedIndex.SEGMENT_BUILD_MEMORY_LIMITER, () -> true, null);
 
@@ -164,7 +170,7 @@ public class SegmentFlushTest
         try (TermsReader reader = new TermsReader(termsData, postingLists,
                                                   segmentMetadata.componentMetadatas.get(IndexComponent.Type.TERMS_DATA).root, termsFooterPointer))
         {
-            TermsIterator iterator = reader.allTerms(0, QueryEventListeners.NO_OP_TRIE_LISTENER);
+            TermsIterator iterator = reader.allTerms(0, (QueryEventListener.TrieIndexEventListener)QueryEventListeners.NO_OP_TRIE_LISTENER);
             assertEquals(minTerm, iterator.getMinTerm());
             assertEquals(maxTerm, iterator.getMaxTerm());
 

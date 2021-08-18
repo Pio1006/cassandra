@@ -38,6 +38,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.readers.BKDReader;
 import org.apache.cassandra.index.sai.disk.v1.writers.BKDTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.writers.NumericIndexWriter;
+import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.utils.AbstractIterator;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
@@ -129,7 +130,7 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
                 {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
-            }, QueryEventListeners.NO_OP_BKD_LISTENER, new QueryContext()))
+            }, (QueryEventListener.BKDIndexEventListener)QueryEventListeners.NO_OP_BKD_LISTENER, new QueryContext()))
             {
                 assertEquals(numRows, visited.get());
             }
@@ -183,7 +184,7 @@ public class NumericIndexWriterTest extends NdiRandomizedTest
                 {
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 }
-            }, QueryEventListeners.NO_OP_BKD_LISTENER, new QueryContext()))
+            }, (QueryEventListener.BKDIndexEventListener)QueryEventListeners.NO_OP_BKD_LISTENER, new QueryContext()))
             {
                 assertEquals(maxSegmentRowId, visited.get());
             }

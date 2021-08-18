@@ -31,6 +31,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.readers.TermsReader;
 import org.apache.cassandra.index.sai.disk.v1.writers.InvertedIndexWriter;
+import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
@@ -83,7 +84,7 @@ public class TermsReaderTest extends NdiRandomizedTest
         try (TermsReader reader = new TermsReader(termsData, postingLists,
                                                   indexMetas.get(IndexComponent.Type.TERMS_DATA).root, termsFooterPointer))
         {
-            try (TermsIterator actualTermsEnum = reader.allTerms(0, NO_OP_TRIE_LISTENER))
+            try (TermsIterator actualTermsEnum = reader.allTerms(0, (QueryEventListener.TrieIndexEventListener)NO_OP_TRIE_LISTENER))
             {
                 int i = 0;
                 for (ByteComparable term = actualTermsEnum.next(); term != null; term = actualTermsEnum.next())
@@ -118,7 +119,7 @@ public class TermsReaderTest extends NdiRandomizedTest
             for (Pair<ByteComparable, IntArrayList> pair : termsEnum)
             {
                 final byte[] bytes = ByteSourceInverse.readBytes(pair.left.asComparableBytes(ByteComparable.Version.OSS41));
-                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.fixedLength(bytes), NO_OP_TRIE_LISTENER, new QueryContext()))
+                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.fixedLength(bytes), (QueryEventListener.TrieIndexEventListener)NO_OP_TRIE_LISTENER, new QueryContext()))
                 {
                     final IntArrayList expectedPostingList = pair.right;
 
@@ -137,7 +138,7 @@ public class TermsReaderTest extends NdiRandomizedTest
                 }
 
                 // test skipping
-                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.fixedLength(bytes), NO_OP_TRIE_LISTENER, new QueryContext()))
+                try (PostingList actualPostingList = reader.exactMatch(ByteComparable.fixedLength(bytes), (QueryEventListener.TrieIndexEventListener)NO_OP_TRIE_LISTENER, new QueryContext()))
                 {
                     final IntArrayList expectedPostingList = pair.right;
                     // test skipping to the last block

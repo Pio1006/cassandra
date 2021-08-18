@@ -63,6 +63,9 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.metrics.QueryEventListener;
+import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Component;
@@ -190,7 +193,9 @@ public class SAITester extends CQLTester
                                  new ClusteringComparator(),
                                  ColumnMetadata.regularColumn("sai", "internal", name, validator),
                                  IndexMetadata.fromSchemaMetadata(name, IndexMetadata.Kind.CUSTOM, null),
-                                 IndexWriterConfig.emptyConfig());
+                                 IndexWriterConfig.emptyConfig(),
+                                 TypeUtil.isLiteral(validator) ? QueryEventListeners.NO_OP_TRIE_LISTENER
+                                                               : QueryEventListeners.NO_OP_BKD_LISTENER);
     }
 
     public static ColumnContext createColumnContext(String columnName, String indexName, AbstractType<?> validator)
@@ -201,7 +206,9 @@ public class SAITester extends CQLTester
                                  new ClusteringComparator(),
                                  ColumnMetadata.regularColumn("sai", "internal", columnName, validator),
                                  IndexMetadata.fromSchemaMetadata(indexName, IndexMetadata.Kind.CUSTOM, null),
-                                 IndexWriterConfig.emptyConfig());
+                                 IndexWriterConfig.emptyConfig(),
+                                 TypeUtil.isLiteral(validator) ? QueryEventListeners.NO_OP_TRIE_LISTENER
+                                                               : QueryEventListeners.NO_OP_BKD_LISTENER);
     }
 
     protected void simulateNodeRestart()
@@ -673,7 +680,7 @@ public class SAITester extends CQLTester
 
     protected Set<File> componentFiles(Collection<File> indexFiles, String shortName)
     {
-        String suffix = String.format("_%s.db", shortName);
+        String suffix = String.format("+%s.db", shortName);
         return indexFiles.stream().filter(c -> c.getName().endsWith(suffix)).collect(Collectors.toSet());
     }
 

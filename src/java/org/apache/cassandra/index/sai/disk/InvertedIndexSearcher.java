@@ -32,6 +32,7 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.Segment;
@@ -53,14 +54,14 @@ public class InvertedIndexSearcher extends IndexSearcher
     private final TermsReader reader;
     private final QueryEventListener.TrieIndexEventListener perColumnEventListener;
 
-    InvertedIndexSearcher(Segment segment, QueryEventListener.TrieIndexEventListener listener) throws IOException
+    InvertedIndexSearcher(Segment segment, ColumnContext columnContext) throws IOException
     {
-        super(segment);
+        super(segment, columnContext);
 
         long root = metadata.getIndexRoot(IndexComponent.Type.TERMS_DATA);
         assert root >= 0;
 
-        perColumnEventListener = listener;
+        perColumnEventListener = (QueryEventListener.TrieIndexEventListener)columnContext.getColumnQueryMetrics();
 
         Map<String,String> map = metadata.componentMetadatas.get(IndexComponent.Type.TERMS_DATA).attributes;
         String footerPointerString = map.get(SAICodecUtils.FOOTER_POINTER);
@@ -83,12 +84,11 @@ public class InvertedIndexSearcher extends IndexSearcher
     @SuppressWarnings("resource")
     public RangeIterator search(Expression exp, SSTableQueryContext context, boolean defer)
     {
-        //TODO Fix logmessage
-//        if (logger.isTraceEnabled())
-//            logger.trace(indexComponents.logMessage("Searching on expression '{}'..."), exp);
-//
-//        if (!exp.getOp().isEquality())
-//            throw new IllegalArgumentException(indexComponents.logMessage("Unsupported expression: " + exp));
+        if (logger.isTraceEnabled())
+            logger.trace(columnContext.logMessage("Searching on expression '{}'..."), exp);
+
+        if (!exp.getOp().isEquality())
+            throw new IllegalArgumentException(columnContext.logMessage("Unsupported expression: " + exp));
 
         final ByteComparable term = ByteComparable.fixedLength(exp.lower.value.encoded);
         QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(context.queryContext, perColumnEventListener);
