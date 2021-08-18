@@ -221,11 +221,15 @@ public class BlockIndexWriterTest extends NdiRandomizedTest
 //            PostingList postings = reader.traverse(ByteComparable.fixedLength("aa".getBytes(StandardCharsets.UTF_8)),
 //                                                   ByteComparable.fixedLength("ab".getBytes(StandardCharsets.UTF_8)));
 
-            PostingList postings = reader.traverse(ByteComparable.fixedLength("aaabbb".getBytes(StandardCharsets.UTF_8)),
-                                                   true,
-                                                   ByteComparable.fixedLength("gggaaaddd".getBytes(StandardCharsets.UTF_8)),
-                                                   true);
+//            PostingList postings = reader.traverse(ByteComparable.fixedLength("aaabbb".getBytes(StandardCharsets.UTF_8)),
+//                                                   true,
+//                                                   ByteComparable.fixedLength("gggaaaddd".getBytes(StandardCharsets.UTF_8)),
+//                                                   true);
 
+            PostingList postings = reader.traverse(null,
+                                                   true,
+                                                   ByteComparable.fixedLength("cccc".getBytes(StandardCharsets.UTF_8)),
+                                                   false);
 
             while (true)
             {
