@@ -307,6 +307,7 @@ public class IndexDescriptor
         IndexComponent.PER_INDEX_TYPES.stream()
                                       .map(t -> IndexComponent.create(t, index))
                                       .map(this::tmpFileFor)
+                                      .filter(File::exists)
                                       .forEach(this::deleteComponent);
     }
 

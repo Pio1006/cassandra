@@ -63,7 +63,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public boolean isColumnIndexComplete(IndexDescriptor indexDescriptor, String index)
     {
-        return indexDescriptor.registerIndex(index).hasComponent(IndexComponent.create(IndexComponent.Type.COLUMN_COMPLETION_MARKER, index));
+        indexDescriptor.registerSSTable().registerIndex(index);
+        return indexDescriptor.hasComponent(IndexComponent.GROUP_COMPLETION_MARKER) &&
+               indexDescriptor.hasComponent(IndexComponent.create(IndexComponent.Type.COLUMN_COMPLETION_MARKER, index));
     }
 
     public PerSSTableComponentsWriter createPerSSTableComponentsWriter(boolean perColumnOnly,
