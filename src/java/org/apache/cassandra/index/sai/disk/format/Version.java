@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.index.sai.disk.format;
 
+import java.util.List;
+import java.util.Set;
+
 import com.google.common.base.Objects;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 
@@ -33,6 +38,8 @@ public class Version
     public static final Version AA = new Version("aa", V1OnDiskFormat.instance);
     // Stargazer
     public static final Version BA = new Version("ba", V1OnDiskFormat.instance);
+
+    public static List<Version> ALL_VERSIONS = Lists.newArrayList(AA, BA);
 
     public static final Version EARLIEST = AA;
     public static final Version LATEST = BA;

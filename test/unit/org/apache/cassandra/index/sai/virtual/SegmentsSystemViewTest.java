@@ -203,7 +203,7 @@ public class SegmentsSystemViewTest extends SAITester
             {
                 SSTableReader sstable = sstableIndex.getSSTable();
 
-                IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+                IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable.descriptor);
 
                 if (sstableIndex.getColumnContext().isLiteral())
                 {

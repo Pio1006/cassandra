@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
@@ -78,6 +77,7 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.codecs.CodecUtil;
 import org.awaitility.Awaitility;
 
+import static org.apache.cassandra.index.sai.disk.format.IndexDescriptor.SAI_DESCRIPTOR;
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.quote;
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
@@ -229,7 +229,7 @@ public class SAITester extends CQLTester
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            File file = IndexDescriptor.forSSTable(sstable.descriptor).fileFor(indexComponent);
+            File file = IndexDescriptor.create(sstable.descriptor).fileFor(indexComponent);
             corruptionType.corrupt(file);
         }
     }
@@ -278,7 +278,7 @@ public class SAITester extends CQLTester
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+            IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable.descriptor);
             if (!indexDescriptor.validatePerSSTableComponentsChecksum() || !indexDescriptor.validatePerColumnComponentsChecksum(context.getIndexName()))
                 return false;
         }
@@ -462,26 +462,22 @@ public class SAITester extends CQLTester
 
     protected Set<File> indexFiles()
     {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
-        Set<Component> components = cfs.indexManager.listIndexGroups()
-                                                    .stream()
-                                                    .filter(g -> g instanceof StorageAttachedIndexGroup)
-                                                    .map(Index.Group::getComponents)
-                                                    .flatMap(Set::stream)
-                                                    .collect(Collectors.toSet());
+//        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
+//        Set<Component> components = cfs.indexManager.listIndexGroups()
+//                                                    .stream()
+//                                                    .filter(g -> g instanceof StorageAttachedIndexGroup)
+//                                                    .map(Index.Group::getComponents)
+//                                                    .flatMap(Set::stream)
+//                                                    .collect(Collectors.toSet());
 
-        Set<File> indexFiles = new HashSet<>();
-        for (Component component : components)
-        {
-            List<File> files = cfs.getDirectories().getCFDirectories()
-                    .stream()
-                    .flatMap(dir -> Arrays.stream(dir.listFiles()))
-                    .filter(File::isFile)
-                    .filter(f -> f.getName().endsWith(component.name))
-                    .collect(Collectors.toList());
-            indexFiles.addAll(files);
-        }
-        return indexFiles;
+        return Keyspace.open(KEYSPACE)
+                       .getColumnFamilyStore(currentTable())
+                       .getDirectories()
+                       .getCFDirectories()
+                       .stream()
+                       .flatMap(dir -> Arrays.stream(dir.listFiles((folder, name) -> name.contains(SAI_DESCRIPTOR))))
+                       .filter(File::isFile)
+                       .collect(Collectors.toSet());
     }
 
     protected ObjectName bufferSpaceObjectName(String name) throws MalformedObjectNameException
@@ -663,7 +659,7 @@ public class SAITester extends CQLTester
                 assertTrue("Expect all index components are tracked by SSTable, but " + diff + " are not included.",
                            !ndiComponents.isEmpty() && diff.isEmpty());
             else
-                assertFalse("Expect no index components, but got " + components, components.toString().contains(IndexDescriptor.SAI_DESCRIPTOR));
+                assertFalse("Expect no index components, but got " + components, components.toString().contains(SAI_DESCRIPTOR));
 
             Set<Component> tocContents = SSTable.readTOC(sstable.descriptor);
             assertEquals(components, tocContents);
@@ -672,7 +668,7 @@ public class SAITester extends CQLTester
 
     protected Set<File> componentFiles(Collection<File> indexFiles, IndexComponent component)
     {
-        return indexFiles.stream().filter(c -> c.getName().endsWith(component.type.representation)).collect(Collectors.toSet());
+        return indexFiles.stream().filter(c -> c.getName().endsWith(component.type.representation + ".db")).collect(Collectors.toSet());
     }
 
     protected Set<File> componentFiles(Collection<File> indexFiles, String shortName)

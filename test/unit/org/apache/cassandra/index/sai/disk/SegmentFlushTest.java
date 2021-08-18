@@ -107,7 +107,7 @@ public class SegmentFlushTest
     private void testFlushBetweenRowIds(long sstableRowId1, long sstableRowId2, int segments) throws Exception
     {
         Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
-        IndexDescriptor indexDescriptor = IndexDescriptor.latest(new Descriptor(tmpDir.toFile(), "ks", "cf", 1));
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(tmpDir.toFile(), "ks", "cf", 1));
 
         ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "column", UTF8Type.instance);
         IndexMetadata config = IndexMetadata.fromSchemaMetadata("index_name", IndexMetadata.Kind.CUSTOM, null);

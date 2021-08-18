@@ -69,7 +69,7 @@ public class SSTableContextManager
                 continue;
             }
 
-            IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+            IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable.descriptor);
 
             if (!indexDescriptor.isGroupIndexComplete())
             {

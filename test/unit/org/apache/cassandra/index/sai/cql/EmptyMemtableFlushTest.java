@@ -60,10 +60,10 @@ public class EmptyMemtableFlushTest extends SAITester
         execute("DELETE FROM %s WHERE id = 0");
         flush();
         // After this we should have only 1 set of index files but 2 completion markers
-        assertEquals(1, componentFiles(indexFiles(), IndexComponent.Type.TERMS_DATA.name()).size());
-        assertEquals(1, componentFiles(indexFiles(), IndexComponent.Type.POSTING_LISTS.name()).size());
-        assertEquals(1, componentFiles(indexFiles(), IndexComponent.Type.META.name()).size());
-        assertEquals(2, componentFiles(indexFiles(), IndexComponent.Type.COLUMN_COMPLETION_MARKER.name()).size());
+        assertEquals(1, componentFiles(indexFiles(), IndexComponent.Type.TERMS_DATA.representation).size());
+        assertEquals(1, componentFiles(indexFiles(), IndexComponent.Type.POSTING_LISTS.representation).size());
+        assertEquals(1, componentFiles(indexFiles(), IndexComponent.Type.META.representation).size());
+        assertEquals(2, componentFiles(indexFiles(), IndexComponent.Type.COLUMN_COMPLETION_MARKER.representation).size());
 
         assertEquals(0, execute("SELECT * from %s WHERE val1 = '0'").size());
         assertEquals(1, execute("SELECT * from %s WHERE val2 = '1'").size());

@@ -31,6 +31,8 @@ public interface OnDiskFormat
 {
     public boolean isGroupIndexComplete(IndexDescriptor indexDescriptor);
 
+    public boolean isColumnIndexComplete(IndexDescriptor indexDescriptor, String index);
+
     public PerSSTableComponentsWriter createPerSSTableComponentsWriter(boolean perColumnOnly,
                                                                        IndexDescriptor indexDescriptor,
                                                                        CompressionParams compressionParams) throws IOException;

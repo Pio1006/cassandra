@@ -21,7 +21,6 @@ import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -45,7 +44,6 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
@@ -125,7 +123,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         if (indices.isEmpty())
         {
             for (SSTableReader sstable : contextManager.sstables())
-                sstable.unregisterComponents(IndexDescriptor.forSSTable(sstable.descriptor).getSSTableComponents(), baseCfs.getTracker());
+                sstable.unregisterComponents(IndexDescriptor.create(sstable.descriptor).getSSTableComponents(), baseCfs.getTracker());
             deletePerSSTableFiles(baseCfs.getLiveSSTables());
             baseCfs.getTracker().unsubscribe(this);
         }
@@ -206,7 +204,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     {
         try
         {
-            return new StorageAttachedIndexWriter(IndexDescriptor.latest(descriptor), indices, tracker, tableMetadata.params.compression);
+            return new StorageAttachedIndexWriter(IndexDescriptor.create(descriptor), indices, tracker, tableMetadata.params.compression);
         }
         catch (Throwable t)
         {
@@ -242,9 +240,10 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     @VisibleForTesting
     public static Set<Component> getLiveComponents(SSTableReader sstable, Collection<StorageAttachedIndex> indices)
     {
-        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable.descriptor);
         Set<Component> components = indexDescriptor.getSSTableComponents();
-        indices.stream().forEach(index -> components.addAll(indexDescriptor.getSSTableComponents(index.getContext().getIndexName())));
+        indices.stream().forEach(index -> components.addAll(indexDescriptor.registerIndex(index.getContext().getIndexName())
+                                                                           .getSSTableComponents(index.getContext().getIndexName())));
         return components;
     }
 
@@ -281,7 +280,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     void deletePerSSTableFiles(Collection<SSTableReader> sstables)
     {
         contextManager.release(sstables);
-        sstables.forEach(sstableReader -> IndexDescriptor.forSSTable(sstableReader.descriptor).deletePerSSTableIndexComponents());
+        sstables.forEach(sstableReader -> IndexDescriptor.create(sstableReader.descriptor).deletePerSSTableIndexComponents());
     }
 
     void dropIndexSSTables(Collection<SSTableReader> ss, StorageAttachedIndex index)
@@ -313,7 +312,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         if (!results.right.isEmpty())
         {
             results.right.forEach(sstable -> {
-                IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+                IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable.descriptor);
                 indexDescriptor.deletePerSSTableIndexComponents();
                 // Column indexes are invalid if their SSTable-level components are corrupted so delete
                 // their associated index files and mark them non-queryable.

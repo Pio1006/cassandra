@@ -161,7 +161,7 @@ public class IndexViewManagerTest extends SAITester
         for (int i = 0; i < CONCURRENT_UPDATES; i++)
         {
             // mock the initial view indexes to track the number of releases
-            List<SSTableContext> initialContexts = sstables.stream().limit(2).map(s -> SSTableContext.create(s, IndexDescriptor.forSSTable(s.descriptor))).collect(Collectors.toList());
+            List<SSTableContext> initialContexts = sstables.stream().limit(2).map(s -> SSTableContext.create(s, IndexDescriptor.create(s.descriptor))).collect(Collectors.toList());
             List<SSTableIndex> initialIndexes = new ArrayList<>();
 
             for (SSTableContext initialContext : initialContexts)
@@ -174,8 +174,8 @@ public class IndexViewManagerTest extends SAITester
             View initialView = tracker.getView();
             assertEquals(2, initialView.size());
 
-            List<SSTableContext> compacted = sstables.stream().skip(2).limit(1).map(s -> SSTableContext.create(s, IndexDescriptor.forSSTable(s.descriptor))).collect(Collectors.toList());
-            List<SSTableContext> flushed = sstables.stream().skip(3).limit(1).map(s -> SSTableContext.create(s, IndexDescriptor.forSSTable(s.descriptor))).collect(Collectors.toList());
+            List<SSTableContext> compacted = sstables.stream().skip(2).limit(1).map(s -> SSTableContext.create(s, IndexDescriptor.create(s.descriptor))).collect(Collectors.toList());
+            List<SSTableContext> flushed = sstables.stream().skip(3).limit(1).map(s -> SSTableContext.create(s, IndexDescriptor.create(s.descriptor))).collect(Collectors.toList());
 
             // concurrently update from both flush and compaction
             Future<?> compaction = executor.submit(() -> tracker.update(initial, compacted, true, false));

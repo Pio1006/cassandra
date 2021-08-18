@@ -71,12 +71,6 @@ public abstract class SSTableContext extends SharedCloseableImpl
      */
     public abstract long diskUsage();
 
-    public abstract boolean isColumnIndexComplete(String indexName);
-
-    public abstract boolean isColumnIndexEmpty(String indexName);
-
-    public abstract void deleteColumnIndex(String indexName);
-
     public abstract PerIndexFiles perIndexFiles(ColumnContext columnContext);
 
     public IndexInput openInput(IndexComponent indexComponent)

@@ -99,26 +99,26 @@ public class IndexComponent
     public static final IndexComponent TOKEN_VALUES = new IndexComponent(Type.TOKEN_VALUES);
 
     public static final Set<IndexComponent> PER_SSTABLE = Sets.newHashSet(GROUP_COMPLETION_MARKER, GROUP_META, TOKEN_VALUES, OFFSETS_VALUES);
+    public static final Set<IndexComponent.Type> PER_INDEX_TYPES = Sets.newHashSet(Type.COLUMN_COMPLETION_MARKER,
+                                                                                   Type.META,
+                                                                                   Type.KD_TREE,
+                                                                                   Type.KD_TREE_POSTING_LISTS,
+                                                                                   Type.TERMS_DATA,
+                                                                                   Type.POSTING_LISTS);
 
     public final Type type;
     public final String index;
-    public final String[] elements;
 
     private IndexComponent(Type type)
     {
         this.type = type;
         this.index = null;
-        this.elements = new String[1];
-        this.elements[0] = type.representation;
     }
 
     private IndexComponent(Type type, String index)
     {
         this.type = type;
         this.index = index;
-        this.elements = new String[2];
-        this.elements[0] = index;
-        this.elements[1] = type.representation;
     }
 
     public static IndexComponent create(Type type)

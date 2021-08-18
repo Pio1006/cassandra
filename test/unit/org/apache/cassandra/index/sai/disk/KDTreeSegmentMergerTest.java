@@ -194,7 +194,7 @@ public class KDTreeSegmentMergerTest extends SAITester
 
         MergeOneDimPointValues merger = new MergeOneDimPointValues(segmentIterators, Integer.BYTES);
 
-        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(new Descriptor(temporaryFolder.newFolder(), "test", "test", 20));
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(temporaryFolder.newFolder(), "test", "test", 20));
 
         try (NumericIndexWriter indexWriter = new NumericIndexWriter(indexDescriptor,
                                                                      SAITester.createColumnContext("test", Int32Type.instance),
@@ -237,7 +237,7 @@ public class KDTreeSegmentMergerTest extends SAITester
 
     private BKDReader createReader(BKDTreeRamBuffer buffer, int maxSegmentRowId, int generation) throws Throwable
     {
-        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(new Descriptor(temporaryFolder.newFolder(), "test", "test", generation));
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(temporaryFolder.newFolder(), "test", "test", generation));
 
         final NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
                                                                  SAITester.createColumnContext("test", Int32Type.instance),

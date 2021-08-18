@@ -87,15 +87,11 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
-import org.apache.cassandra.index.sai.disk.ColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
-import org.apache.cassandra.index.sai.disk.v1.writers.MemtableIndexWriter;
-import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -108,7 +104,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -176,7 +171,7 @@ public class StorageAttachedIndex implements Index
                                 {
                                     ss = sstablesToRebuild.stream()
                                                           .filter(s -> {
-                                                              IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(s.descriptor);
+                                                              IndexDescriptor indexDescriptor = IndexDescriptor.create(s.descriptor);
                                                               return !indexDescriptor.fileFor(IndexComponent.create(IndexComponent.Type.COLUMN_COMPLETION_MARKER,
                                                                                                                     context.getIndexName())).exists();
                                                           })
@@ -592,7 +587,9 @@ public class StorageAttachedIndex implements Index
 
             //   3. The column index does not have a completion marker
             if (!view.containsSSTable(sstable) && !sstable.isMarkedCompacted() &&
-                !IndexDescriptor.forSSTable(sstable.descriptor).isColumnIndexComplete(context.getIndexName()))
+                !IndexDescriptor.create(sstable.descriptor)
+                                .registerIndex(context.getIndexName())
+                                .isColumnIndexComplete(context.getIndexName()))
             {
                 nonIndexed.add(sstable);
             }

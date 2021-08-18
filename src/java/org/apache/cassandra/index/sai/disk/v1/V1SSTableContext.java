@@ -154,24 +154,6 @@ public class V1SSTableContext extends SSTableContext
     }
 
     @Override
-    public boolean isColumnIndexComplete(String indexName)
-    {
-        return indexDescriptor.isColumnIndexComplete(indexName);
-    }
-
-    @Override
-    public boolean isColumnIndexEmpty(String indexName)
-    {
-        return indexDescriptor.isColumnIndexEmpty(indexName);
-    }
-
-    @Override
-    public void deleteColumnIndex(String indexName)
-    {
-
-    }
-
-    @Override
     public PerIndexFiles perIndexFiles(ColumnContext columnContext)
     {
         return new PerIndexFiles(indexDescriptor, columnContext);

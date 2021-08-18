@@ -100,7 +100,7 @@ public abstract class AbstractOnDiskBenchmark
         assert ChunkCache.instance != null;
 
         descriptor = new Descriptor(Files.createTempDirectory("jmh").toFile(), "ks", this.getClass().getSimpleName(), 1);
-        indexDescriptor = IndexDescriptor.latest(descriptor);
+        indexDescriptor = IndexDescriptor.create(descriptor);
         index = "test";
         postingLists = IndexComponent.create(IndexComponent.Type.POSTING_LISTS, index);
 

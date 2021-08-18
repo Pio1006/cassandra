@@ -152,11 +152,11 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             perSSTableFileLock = shouldWriteTokenOffsetFiles(sstable);
             boolean perColumnOnly = perSSTableFileLock == null;
             // remove existing per column index files instead of overwriting
-            indexes.forEach(index -> IndexDescriptor.forSSTable(sstable.descriptor).deleteColumnIndex(index.getContext().getIndexName()));
+            indexes.forEach(index -> IndexDescriptor.create(sstable.descriptor).deleteColumnIndex(index.getContext().getIndexName()));
 
             final CompressionParams compressionParams = CryptoUtils.getCompressionParams(sstable);
 
-            indexWriter = new StorageAttachedIndexWriter(IndexDescriptor.latest(sstable.descriptor), indexes, txn, perColumnOnly, compressionParams);
+            indexWriter = new StorageAttachedIndexWriter(IndexDescriptor.create(sstable.descriptor), indexes, txn, perColumnOnly, compressionParams);
 
             long previousKeyPosition = 0;
             indexWriter.begin();
@@ -279,7 +279,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     private CountDownLatch shouldWriteTokenOffsetFiles(SSTableReader sstable)
     {
         // if per-table files are incomplete or checksum failed during full rebuild.
-        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(sstable.descriptor);
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable.descriptor);
         if (!indexDescriptor.isGroupIndexComplete() ||
             (isFullRebuild && !indexDescriptor.validatePerSSTableComponentsChecksum()))
         {

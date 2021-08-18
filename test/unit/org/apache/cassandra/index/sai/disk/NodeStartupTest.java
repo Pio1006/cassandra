@@ -46,7 +46,6 @@ import org.apache.cassandra.index.sai.disk.v1.writers.SSTableIndexWriter;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.schema.Schema;
 
 import static org.junit.Assert.assertTrue;
@@ -300,16 +299,16 @@ public class NodeStartupTest extends SAITester
         }
     }
 
-    private boolean isGroupIndexComplete() throws Exception
+    private boolean isGroupIndexComplete()
     {
         ColumnFamilyStore cfs = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
-        return cfs.getLiveSSTables().stream().allMatch(sstable -> IndexDescriptor.forSSTable(sstable.descriptor).isGroupIndexComplete());
+        return cfs.getLiveSSTables().stream().allMatch(sstable -> IndexDescriptor.create(sstable.descriptor).isGroupIndexComplete());
     }
 
-    private boolean isColumnIndexComplete() throws Exception
+    private boolean isColumnIndexComplete()
     {
         ColumnFamilyStore cfs = Objects.requireNonNull(Schema.instance.getKeyspaceInstance(KEYSPACE)).getColumnFamilyStore(currentTable());
-        return cfs.getLiveSSTables().stream().allMatch(sstable -> SSTableContext.create(sstable, IndexDescriptor.forSSTable(sstable.descriptor)).isColumnIndexComplete(indexName));
+        return cfs.getLiveSSTables().stream().allMatch(sstable -> IndexDescriptor.create(sstable.descriptor).isColumnIndexComplete(indexName));
     }
 
     private void setState(IndexStateOnRestart state)

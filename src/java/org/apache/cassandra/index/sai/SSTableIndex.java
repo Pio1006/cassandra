@@ -256,7 +256,7 @@ public class SSTableIndex
              */
             if (obsolete.get())
             {
-                sstableContext.deleteColumnIndex(columnContext.getIndexName());
+                sstableContext.indexDescriptor.deleteColumnIndex(columnContext.getIndexName());
             }
         }
     }

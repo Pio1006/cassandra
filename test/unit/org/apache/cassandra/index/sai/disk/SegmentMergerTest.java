@@ -186,7 +186,7 @@ public class SegmentMergerTest extends SAITester
         File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
         Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), generation, SSTableFormat.Type.current());
         TableMetadata table = currentTableMetadata();
-        IndexDescriptor indexDescriptor = IndexDescriptor.forSSTable(descriptor);
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor);
         assertTrue(indexDescriptor.isGroupIndexComplete());
         IndexMetadata index = table.indexes.get(indexName).get();
         ColumnContext context = new ColumnContext(table, index);
