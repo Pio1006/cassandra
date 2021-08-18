@@ -325,7 +325,7 @@ public class SSTableIndexWriter implements ColumnIndexWriter
         }
         finally
         {
-            indexDescriptor.deleteTemporaryComponents();
+            indexDescriptor.deleteTemporaryComponents(columnContext.getIndexName());
         }
     }
 

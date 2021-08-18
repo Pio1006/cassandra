@@ -86,7 +86,7 @@ public class QueryTimeoutTest extends SAITester
     public void delayDuringKDTreeIntersectionShouldProvokeTimeoutInReader() throws Throwable
     {
         Injection kdtree_intersection_delay = Injections.newPause("kdtree_intersection_delay", DELAY)
-                                                        .add(newInvokePoint().onClass("org.apache.cassandra.index.sai.disk.v1.BKDReader$Intersection")
+                                                        .add(newInvokePoint().onClass("org.apache.cassandra.index.sai.disk.v1.readers.BKDReader$Intersection")
                                                                                    .onMethod("collectPostingLists")
                                                                                    .at("INVOKE QueryContext.checkpoint"))
 
@@ -103,7 +103,7 @@ public class QueryTimeoutTest extends SAITester
     public void delayDuringTermsReaderMatchShouldProvokeTimeoutInReader() throws Throwable
     {
         Injection terms_match_delay = Injections.newPause("terms_match_delay", DELAY)
-                                                .add(newInvokePoint().onClass("org.apache.cassandra.index.sai.disk.v1.TermsReader$TermQuery")
+                                                .add(newInvokePoint().onClass("org.apache.cassandra.index.sai.disk.v1.readers.TermsReader$TermQuery")
                                                                            .onMethod("execute")
                                                                            .at("INVOKE QueryContext.checkpoint"))
                                                 .build();

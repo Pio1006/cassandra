@@ -302,10 +302,12 @@ public class IndexDescriptor
                               .forEach(this::deleteComponent);
     }
 
-    public void deleteTemporaryComponents()
+    public void deleteTemporaryComponents(String index)
     {
-        onDiskTemporaryFileMap.values().stream().forEach(this::deleteComponent);
-        onDiskTemporaryFileMap.clear();
+        IndexComponent.PER_INDEX_TYPES.stream()
+                                      .map(t -> IndexComponent.create(t, index))
+                                      .map(this::tmpFileFor)
+                                      .forEach(this::deleteComponent);
     }
 
     private void deleteComponent(File file)
