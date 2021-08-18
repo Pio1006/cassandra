@@ -111,14 +111,14 @@ public class ColumnContext
     private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final AbstractAnalyzer.AnalyzerFactory queryAnalyzerFactory;
 
-    public ColumnContext(TableMetadata tableMeta, IndexMetadata metadata)
+    public ColumnContext(TableMetadata tableMeta, IndexMetadata config)
     {
         this.keyspace = tableMeta.keyspace;
         this.table = tableMeta.name;
         this.partitionKeyType = tableMeta.partitionKeyType;
         this.clusteringComparator = tableMeta.comparator;
-        this.target = TargetParser.parse(tableMeta, metadata);
-        this.config = metadata;
+        this.target = TargetParser.parse(tableMeta, config);
+        this.config = config;
         this.viewManager = new IndexViewManager(this);
         this.indexMetrics = new IndexMetrics(this, tableMeta);
         this.validator = TypeUtil.cellValueType(target);
@@ -128,11 +128,10 @@ public class ColumnContext
         this.columnQueryMetrics = isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(getIndexName(), tableMeta)
                                               : new ColumnQueryMetrics.BKDIndexMetrics(getIndexName(), tableMeta);
 
-        Map<String, String> options = this.config != null ? this.config.options : Collections.emptyMap();
-        this.analyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), options);
-        if (AbstractAnalyzer.hasQueryAnalyzer(options))
+        this.analyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), config.options);
+        if (AbstractAnalyzer.hasQueryAnalyzer(config.options))
         {
-            queryAnalyzerFactory = AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), options);
+            queryAnalyzerFactory = AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options);
         }
         else
         {
