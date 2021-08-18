@@ -25,7 +25,6 @@
 package org.apache.cassandra.index.sai.analyzer;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
@@ -133,11 +132,11 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 
     public static AnalyzerFactory fromOptions(AbstractType<?> type, Map<String, String> options)
     {
-        if (options.containsKey(LuceneAnalyzer.JSON_ANALYZER))
+        if (options.containsKey(LuceneAnalyzer.JSON_INDEX_ANALYZER))
         {
             try
             {
-                String json = options.get(LuceneAnalyzer.JSON_ANALYZER);
+                String json = options.get(LuceneAnalyzer.JSON_INDEX_ANALYZER);
                 return toAnalyzerFactory(json, type, options);
             }
             catch (Exception ex)

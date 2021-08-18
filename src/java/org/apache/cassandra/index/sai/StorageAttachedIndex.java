@@ -202,7 +202,7 @@ public class StorageAttachedIndex implements Index
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_MIN_LEAVES,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_SKIP_OPTION,
-                                                                     LuceneAnalyzer.JSON_ANALYZER,
+                                                                     LuceneAnalyzer.JSON_INDEX_ANALYZER,
                                                                      LuceneAnalyzer.JSON_QUERY_ANALYZER);
 
     public static final Set<CQL3Type> SUPPORTED_TYPES = ImmutableSet.of(CQL3Type.Native.ASCII, CQL3Type.Native.BIGINT, CQL3Type.Native.DATE,

@@ -34,7 +34,7 @@ public class LuceneAnalyzerTest extends SAITester
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {" +
-                    "'json_analyzer': '[\n" +
+                    "'json_index_analyzer': '[\n" +
                     "\t{\"tokenizer\":\"ngram\", \"minGramSize\":\"2\", \"maxGramSize\":\"3\"},\n" +
                     "\t{\"filter\":\"lowercase\"}\n" +
                     "]'," +
@@ -58,7 +58,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                                             "\t{\"tokenizer\":\"lalalalaal\"}\n" +
                                             "]'}")).isInstanceOf(InvalidConfigurationInQueryException.class);
     }
@@ -68,7 +68,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                                             "\t{\"tokenizer\":\"whitespace\"},\n" +
                                             "\t{\"filter\":\"stop\"}\n" +
                                             "]'}")).isInstanceOf(InvalidConfigurationInQueryException.class);
@@ -79,7 +79,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                     "\t{\"tokenizer\":\"keyword\"},\n" +
                     "\t{\"charfilter\":\"htmlstrip\"}\n" +
                     "]'}");
@@ -98,7 +98,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                     "\t{\"tokenizer\":\"ngram\", \"minGramSize\":\"2\", \"maxGramSize\":\"3\"},\n" +
                     "\t{\"filter\":\"lowercase\"}\n" +
                     "]'}");
@@ -119,7 +119,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                     "\t{\"tokenizer\":\"ngram\", \"minGramSize\":\"2\", \"maxGramSize\":\"3\"},\n" +
                     "\t{\"filter\":\"lowercase\"}\n" +
                     "]'}");
@@ -138,7 +138,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                     "{\"tokenizer\":\"whitespace\"}\n" +
                     "]'}");
 
@@ -159,7 +159,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                     "\t{\"tokenizer\":\"whitespace\"},\n" +
                     "\t{\"filter\":\"lowercase\"}\n" +
                     "]'}");
@@ -181,7 +181,7 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_analyzer':'[\n" +
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'json_index_analyzer':'[\n" +
                     "\t{\"tokenizer\":\"whitespace\"},\n" +
                     "\t{\"filter\":\"porterstem\"}\n" +
                     "]'}");

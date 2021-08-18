@@ -47,7 +47,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 
 public class LuceneAnalyzer extends AbstractAnalyzer
 {
-    public static final String JSON_ANALYZER = "json_analyzer";
+    public static final String JSON_INDEX_ANALYZER = "json_index_analyzer";
     public static final String JSON_QUERY_ANALYZER = "json_query_analyzer";
     private AbstractType<?> type;
     private boolean hasNext = false;
@@ -106,8 +106,14 @@ public class LuceneAnalyzer extends AbstractAnalyzer
     {
         try
         {
-            tokenStream.end();
-            tokenStream.close();
+            try
+            {
+                tokenStream.end();
+            }
+            finally
+            {
+                tokenStream.close();
+            }
         }
         catch (IOException ex)
         {

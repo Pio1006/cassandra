@@ -129,14 +129,10 @@ public class ColumnContext
                                               : new ColumnQueryMetrics.BKDIndexMetrics(getIndexName(), tableMeta);
 
         this.analyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), config.options);
-        if (AbstractAnalyzer.hasQueryAnalyzer(config.options))
-        {
-            queryAnalyzerFactory = AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options);
-        }
-        else
-        {
-            this.queryAnalyzerFactory = this.analyzerFactory;
-        }
+
+        this.queryAnalyzerFactory = AbstractAnalyzer.hasQueryAnalyzer(config.options)
+                                    ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options)
+                                    : this.analyzerFactory;
 
         logger.info(logMessage("Initialized column context with index writer config: {}"),
                 this.indexWriterConfig.toString());
@@ -164,14 +160,10 @@ public class ColumnContext
         this.indexWriterConfig = indexWriterConfig;
         Map<String, String> options = config != null ? config.options : Collections.emptyMap();
         this.analyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), options);
-        if (AbstractAnalyzer.hasQueryAnalyzer(options))
-        {
-            queryAnalyzerFactory = AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), options);
-        }
-        else
-        {
-            this.queryAnalyzerFactory = this.analyzerFactory;
-        }
+
+        this.queryAnalyzerFactory = AbstractAnalyzer.hasQueryAnalyzer(config.options)
+                                    ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options)
+                                    : this.analyzerFactory;
     }
 
     public ColumnContext(TableMetadata table, ColumnMetadata column)
@@ -189,14 +181,9 @@ public class ColumnContext
         this.indexWriterConfig = IndexWriterConfig.emptyConfig();
         Map<String, String> options = Collections.emptyMap();
         this.analyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), options);
-        if (AbstractAnalyzer.hasQueryAnalyzer(options))
-        {
-            queryAnalyzerFactory = AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), options);
-        }
-        else
-        {
-            this.queryAnalyzerFactory = this.analyzerFactory;
-        }
+        this.queryAnalyzerFactory = AbstractAnalyzer.hasQueryAnalyzer(config.options)
+                                    ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options)
+                                    : this.analyzerFactory;
     }
 
     public AbstractType<?> keyValidator()
@@ -394,7 +381,7 @@ public class ColumnContext
      * Called when index is dropped. Mark all {@link SSTableIndex} as obsolete and per-column index files
      * will be removed when in-flight queries completed.
      */
-    public void invalidate() throws IOException
+    public void invalidate()
     {
         liveMemtables.clear();
         viewManager.invalidate();
