@@ -105,9 +105,4 @@ public class GroupComponentsTest extends SAITester
             assertTrue(sstable.descriptor.fileFor(component).exists());
         }
     }
-
-    private Collection<StorageAttachedIndex> getIndexesFromGroup(StorageAttachedIndexGroup group)
-    {
-        return group.getIndexes().stream().map(index -> (StorageAttachedIndex)index).collect(Collectors.toList());
-    }
 }

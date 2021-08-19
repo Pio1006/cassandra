@@ -88,6 +88,7 @@ import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
 import org.apache.cassandra.index.sai.disk.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -666,13 +667,15 @@ public class StorageAttachedIndex implements Index
         throw new UnsupportedOperationException("Storage-attached index flush observers should never be created directly.");
     }
 
-//    @Override
-//    public Set<Component> getComponents()
-//    {
-//        //TODO Fix
-////        return new HashSet<>(IndexComponents.perColumnComponents(context.getIndexName(), context.isLiteral()));
-//        return new HashSet<>();
-//    }
+    @Override
+    public Set<Component> getComponents()
+    {
+        return Version.LATEST.onDiskFormat()
+                             .perIndexComponents(context.getIndexName(), context.isLiteral())
+                             .stream()
+                             .map(c -> new Component(Component.Type.CUSTOM, IndexDescriptor.componentName(Version.LATEST, c)))
+                             .collect(Collectors.toSet());
+    }
 
     @Override
     public Indexer indexerFor(DecoratedKey key,

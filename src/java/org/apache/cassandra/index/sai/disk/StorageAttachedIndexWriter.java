@@ -31,12 +31,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.memory.RowMapping;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.schema.CompressionParams;
 
@@ -62,21 +64,22 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
 
     public StorageAttachedIndexWriter(IndexDescriptor indexDescriptor,
                                       Collection<StorageAttachedIndex> indices,
-                                      LifecycleNewTracker tracker, CompressionParams compressionParams) throws IOException
+                                      LifecycleNewTracker lifecycleNewTracker,
+                                      CompressionParams compressionParams) throws IOException
     {
-        this(indexDescriptor, indices, tracker, false, compressionParams);
+        this(indexDescriptor, indices, lifecycleNewTracker, false, compressionParams);
     }
 
     public StorageAttachedIndexWriter(IndexDescriptor indexDescriptor,
                                       Collection<StorageAttachedIndex> indices,
-                                      LifecycleNewTracker tracker,
+                                      LifecycleNewTracker lifecycleNewTracker,
                                       boolean perColumnOnly,
                                       CompressionParams compressionParams) throws IOException
     {
         this.indexDescriptor = indexDescriptor;
         this.indices = indices;
-        this.rowMapping = RowMapping.create(tracker.opType());
-        this.columnIndexWriters = indices.stream().map(i -> indexDescriptor.newIndexWriter(i, tracker, rowMapping, compressionParams))
+        this.rowMapping = RowMapping.create(lifecycleNewTracker.opType());
+        this.columnIndexWriters = indices.stream().map(i -> indexDescriptor.newIndexWriter(i, lifecycleNewTracker, rowMapping, compressionParams))
                                          .filter(Objects::nonNull) // a null here means the column had no data to flush
                                          .collect(Collectors.toList());
 

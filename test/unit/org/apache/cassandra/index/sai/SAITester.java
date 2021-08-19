@@ -110,7 +110,7 @@ public class SAITester extends CQLTester
 
     protected static final Injections.Counter perColumnValidationCounter = Injections.newCounter("PerColumnValidationCounter")
                                                                                      .add(newInvokePoint().onClass(IndexDescriptor.class)
-                                                                                                          .onMethod("validatePerColumnComponents", "boolean"))
+                                                                                                          .onMethod("validatePerColumnComponents", "String"))
                                                                                      .build();
 
     protected static ColumnIdentifier V1_COLUMN_IDENTIFIER = ColumnIdentifier.getInterned("v1", true);
@@ -469,14 +469,6 @@ public class SAITester extends CQLTester
 
     protected Set<File> indexFiles()
     {
-//        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
-//        Set<Component> components = cfs.indexManager.listIndexGroups()
-//                                                    .stream()
-//                                                    .filter(g -> g instanceof StorageAttachedIndexGroup)
-//                                                    .map(Index.Group::getComponents)
-//                                                    .flatMap(Set::stream)
-//                                                    .collect(Collectors.toSet());
-
         return Keyspace.open(KEYSPACE)
                        .getColumnFamilyStore(currentTable())
                        .getDirectories()
@@ -659,18 +651,24 @@ public class SAITester extends CQLTester
         {
             Set<Component> components = sstable.components;
             StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
-            Set<Component> ndiComponents = group == null ? Collections.emptySet() : group.getComponents();
+            Set<Component> indexComponents = group == null ? Collections.emptySet()
+                                                           : StorageAttachedIndexGroup.getLiveComponents(sstable, getIndexesFromGroup(group));
 
-            Set<Component> diff = Sets.difference(ndiComponents, components);
+            Set<Component> diff = Sets.difference(indexComponents, components);
             if (indexComponentsExist)
                 assertTrue("Expect all index components are tracked by SSTable, but " + diff + " are not included.",
-                           !ndiComponents.isEmpty() && diff.isEmpty());
+                           !indexComponents.isEmpty() && diff.isEmpty());
             else
                 assertFalse("Expect no index components, but got " + components, components.toString().contains(SAI_DESCRIPTOR));
 
             Set<Component> tocContents = SSTable.readTOC(sstable.descriptor);
             assertEquals(components, tocContents);
         }
+    }
+
+    protected Collection<StorageAttachedIndex> getIndexesFromGroup(StorageAttachedIndexGroup group)
+    {
+        return group.getIndexes().stream().map(index -> (StorageAttachedIndex)index).collect(Collectors.toList());
     }
 
     protected Set<File> componentFiles(Collection<File> indexFiles, IndexComponent component)

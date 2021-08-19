@@ -21,6 +21,9 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.File;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +51,15 @@ import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 public class V1OnDiskFormat implements OnDiskFormat
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
+    private static final EnumSet<IndexComponent.Type> LITERAL_COMPONENT_TYPES = EnumSet.of(IndexComponent.Type.COLUMN_COMPLETION_MARKER,
+                                                                                           IndexComponent.Type.META,
+                                                                                           IndexComponent.Type.TERMS_DATA,
+                                                                                           IndexComponent.Type.POSTING_LISTS);
+    private static final EnumSet<IndexComponent.Type> NUMERIC_COMPONENT_TYPES = EnumSet.of(IndexComponent.Type.COLUMN_COMPLETION_MARKER,
+                                                                                           IndexComponent.Type.META,
+                                                                                           IndexComponent.Type.KD_TREE,
+                                                                                           IndexComponent.Type.KD_TREE_POSTING_LISTS);
 
     public static final V1OnDiskFormat instance = new V1OnDiskFormat();
 
@@ -119,5 +131,18 @@ public class V1OnDiskFormat implements OnDiskFormat
                 throw e;
             }
         }
+    }
+
+    @Override
+    public Set<IndexComponent> perSSTableComponents()
+    {
+        return IndexComponent.PER_SSTABLE;
+    }
+
+    @Override
+    public Set<IndexComponent> perIndexComponents(String index, boolean isLiteral)
+    {
+        return isLiteral ? LITERAL_COMPONENT_TYPES.stream().map(t -> IndexComponent.create(t, index)).collect(Collectors.toSet())
+                         : NUMERIC_COMPONENT_TYPES.stream().map(t -> IndexComponent.create(t, index)).collect(Collectors.toSet());
     }
 }

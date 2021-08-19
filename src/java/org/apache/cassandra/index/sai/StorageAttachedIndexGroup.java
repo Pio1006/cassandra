@@ -44,7 +44,9 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.metrics.IndexGroupMetrics;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.TableStateMetrics;
@@ -52,6 +54,7 @@ import org.apache.cassandra.index.sai.plan.StorageAttachedIndexQueryPlan;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.INotification;
@@ -225,20 +228,18 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     @Override
     public Set<Component> getComponents()
     {
-        return Collections.emptySet();
+        Set<Component> components = IndexComponent.PER_SSTABLE.stream()
+                                                              .map(c -> new Component(Component.Type.CUSTOM,
+                                                                                      IndexDescriptor.componentName(Version.LATEST, c)))
+                                                              .collect(Collectors.toSet());
+        indices.forEach(index -> components.addAll(index.getComponents()));
+        return components;
     }
-
-//    static Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
-//    {
-//        Set<Component> components = new HashSet<>(IndexComponent.PER_SSTABLE);
-//        indices.forEach(index -> components.addAll(index.getComponents()));
-//        return components;
-//    }
 
     // This differs from getComponents in that it only returns index components that exist on disk.
     // It avoids errors being logged by the SSTable.readTOC method when we have an empty index.
     @VisibleForTesting
-    public static Set<Component> getLiveComponents(SSTableReader sstable, Collection<StorageAttachedIndex> indices)
+    public static Set<Component> getLiveComponents(SSTable sstable, Collection<StorageAttachedIndex> indices)
     {
         IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable.descriptor);
         Set<Component> components = indexDescriptor.getSSTableComponents();

@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.disk.format;
 
 import java.io.IOException;
+import java.util.Set;
 
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -44,4 +45,8 @@ public interface OnDiskFormat
                                             CompressionParams compressionParams);
 
     public void validateComponent(IndexDescriptor indexDescriptor, IndexComponent indexComponent, boolean checksum) throws IOException;
+
+    public Set<IndexComponent> perSSTableComponents();
+
+    public Set<IndexComponent> perIndexComponents(String index, boolean isLiteral);
 }

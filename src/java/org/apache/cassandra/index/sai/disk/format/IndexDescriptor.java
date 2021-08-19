@@ -150,11 +150,11 @@ public class IndexDescriptor
     private String filenameFor(IndexComponent component)
     {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(descriptor.baseFilename()).append(SEPARATOR).append(componentName(component));
+        stringBuilder.append(descriptor.baseFilename()).append(SEPARATOR).append(componentName(version, component));
         return stringBuilder.toString();
     }
 
-    private String componentName(IndexComponent indexComponent)
+    public static String componentName(Version version, IndexComponent indexComponent)
     {
         StringBuilder stringBuilder = new StringBuilder();
 
@@ -177,14 +177,14 @@ public class IndexDescriptor
 
     public Set<Component> getSSTableComponents()
     {
-        return perSSTableComponents.stream().map(c -> new Component(Component.Type.CUSTOM, componentName(c))).collect(Collectors.toSet());
+        return perSSTableComponents.stream().map(c -> new Component(Component.Type.CUSTOM, componentName(version, c))).collect(Collectors.toSet());
     }
 
     public Set<Component> getSSTableComponents(String index)
     {
         return perIndexComponents.containsKey(index) ? perIndexComponents.get(index)
                                                                          .stream()
-                                                                         .map(c -> new Component(Component.Type.CUSTOM, componentName(c)))
+                                                                         .map(c -> new Component(Component.Type.CUSTOM, componentName(version, c)))
                                                                          .collect(Collectors.toSet())
                                                      : Collections.emptySet();
     }
