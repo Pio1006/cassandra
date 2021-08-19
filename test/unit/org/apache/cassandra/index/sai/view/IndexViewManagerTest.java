@@ -47,6 +47,7 @@ import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -116,6 +117,7 @@ public class IndexViewManagerTest extends SAITester
      * Tests concurrent sstable updates from flush and compaction, see CASSANDRA-14207.
      */
     @Test
+    // TODO failing
     public void testConcurrentUpdate() throws Throwable
     {
         String tableName = createTable("CREATE TABLE %S (k INT PRIMARY KEY, v INT)");
@@ -151,7 +153,7 @@ public class IndexViewManagerTest extends SAITester
         store.getLiveSSTables().forEach(reader -> copySSTable(reader, tmpDir));
 
         List<SSTableReader> sstables = IntStream.rangeClosed(1, 4)
-                                                .mapToObj(i -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, i))
+                                                .mapToObj(i -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, new SequenceBasedSSTableUniqueIdentifier(i)))
                                                 .map(desc -> desc.getFormat().getReaderFactory().open(desc))
                                                 .collect(Collectors.toList());
 

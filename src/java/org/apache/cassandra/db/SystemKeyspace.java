@@ -52,6 +52,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.SSTableUniqueIdentifier;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -99,7 +100,7 @@ public final class SystemKeyspace
     public static final String PEERS_V2 = "peers_v2";
     public static final String PEER_EVENTS_V2 = "peer_events_v2";
     public static final String COMPACTION_HISTORY = "compaction_history";
-    public static final String SSTABLE_ACTIVITY = "sstable_activity";
+    public static final String SSTABLE_ACTIVITY = "sstable_activity_v2";
     public static final String TABLE_ESTIMATES = "table_estimates";
     public static final String TABLE_ESTIMATES_TYPE_PRIMARY = "primary";
     public static final String TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY = "local_primary";
@@ -245,7 +246,7 @@ public final class SystemKeyspace
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "columnfamily_name text,"
-                + "generation int,"
+                + "generation blob,"
                 + "rate_120m double,"
                 + "rate_15m double,"
                 + "PRIMARY KEY ((keyspace_name, columnfamily_name, generation)))")
@@ -1248,12 +1249,12 @@ public final class SystemKeyspace
      * from values in system.sstable_activity if present.
      * @param keyspace the keyspace the sstable belongs to
      * @param table the table the sstable belongs to
-     * @param generation the generation number for the sstable
+     * @param generation the generation id for the sstable
      */
-    public static RestorableMeter getSSTableReadMeter(String keyspace, String table, int generation)
+    public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableUniqueIdentifier generation)
     {
         String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and columnfamily_name=? and generation=?";
-        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY), keyspace, table, generation);
+        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY), keyspace, table, generation.asBytes());
 
         if (results.isEmpty())
             return new RestorableMeter();
@@ -1267,14 +1268,15 @@ public final class SystemKeyspace
     /**
      * Writes the current read rates for a given SSTable to system.sstable_activity
      */
-    public static void persistSSTableReadMeter(String keyspace, String table, int generation, RestorableMeter meter)
+    public static void persistSSTableReadMeter(String keyspace, String table, SSTableUniqueIdentifier generation, RestorableMeter meter)
     {
+        // TODO
         // Store values with a one-day TTL to handle corner cases where cleanup might not occur
         String cql = "INSERT INTO system.%s (keyspace_name, columnfamily_name, generation, rate_15m, rate_120m) VALUES (?, ?, ?, ?, ?) USING TTL 864000";
         executeInternal(format(cql, SSTABLE_ACTIVITY),
                         keyspace,
                         table,
-                        generation,
+                        generation.asBytes(),
                         meter.fifteenMinuteRate(),
                         meter.twoHourRate());
     }
@@ -1282,10 +1284,10 @@ public final class SystemKeyspace
     /**
      * Clears persisted read rates from system.sstable_activity for SSTables that have been deleted.
      */
-    public static void clearSSTableReadMeter(String keyspace, String table, int generation)
+    public static void clearSSTableReadMeter(String keyspace, String table, SSTableUniqueIdentifier generation)
     {
         String cql = "DELETE FROM system.%s WHERE keyspace_name=? AND columnfamily_name=? and generation=?";
-        executeInternal(format(cql, SSTABLE_ACTIVITY), keyspace, table, generation);
+        executeInternal(format(cql, SSTABLE_ACTIVITY), keyspace, table, generation.asBytes());
     }
 
     /**

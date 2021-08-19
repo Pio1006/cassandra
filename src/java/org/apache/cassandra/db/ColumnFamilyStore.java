@@ -25,11 +25,12 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.Objects;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.*;
@@ -76,6 +77,8 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SSTableUniqueIdentifier;
+import org.apache.cassandra.io.sstable.SSTableUniqueIdentifierFactory;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
@@ -84,7 +87,6 @@ import org.apache.cassandra.metrics.Sampler.Sample;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.TableRepairManager;
-import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStat;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
@@ -218,7 +220,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final OpOrder readOrdering = new OpOrder();
 
     /* This is used to generate the next index for a SSTable */
-    private final AtomicInteger fileIndexGenerator = new AtomicInteger(0);
+    private final java.util.function.Supplier<? extends SSTableUniqueIdentifier> fileIndexGenerator;
 
     public final SecondaryIndexManager indexManager;
     public final TableViews viewManager;
@@ -387,7 +389,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     @VisibleForTesting
     public ColumnFamilyStore(Keyspace keyspace,
                              String columnFamilyName,
-                             int generation,
+                             java.util.function.Supplier<? extends SSTableUniqueIdentifier> fileIndexGenerator,
                              TableMetadataRef metadata,
                              Directories directories,
                              boolean loadSSTables,
@@ -405,7 +407,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         maxCompactionThreshold = new DefaultValue<>(metadata.get().params.compaction.maxCompactionThreshold());
         crcCheckChance = new DefaultValue<>(metadata.get().params.crcCheckChance);
         viewManager = keyspace.viewManager.forTable(metadata.id);
-        fileIndexGenerator.set(generation);
+        this.fileIndexGenerator = fileIndexGenerator;
         sampleReadLatencyNanos = DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS) / 2;
         additionalWriteLatencyNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) / 2;
         memtableFactory = metadata.get().params.memtable.factory;
@@ -652,21 +654,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                                          boolean registerBookkeeping,
                                                                          boolean offline)
     {
-        // get the max generation number, to prevent generation conflicts
-        Directories.SSTableLister lister = directories.sstableLister(Directories.OnTxnErr.IGNORE).includeBackups(true);
-        List<Integer> generations = new ArrayList<>();
-        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
-        {
-            Descriptor desc = entry.getKey();
-            generations.add(desc.generation);
-            if (!desc.isCompatible())
-                throw new RuntimeException(String.format("Incompatible SSTable found. Current version %s is unable to read file: %s. Please run upgradesstables.",
-                                                         desc.getFormat().getLatestVersion(), desc));
-        }
-        Collections.sort(generations);
-        int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
+        Stream<SSTableUniqueIdentifier> curIds = StreamSupport.stream(() -> directories.sstableLister(Directories.OnTxnErr.IGNORE)
+                                                                                                    .includeBackups(true)
+                                                                                                    .list()
+                                                                                                    .keySet()
+                                                                                                    .spliterator(), Spliterator.DISTINCT, false)
+                                                                           .map(d -> d.generation);
 
-        return new ColumnFamilyStore(keyspace, columnFamily, value, metadata, directories, loadSSTables, registerBookkeeping, offline);
+        java.util.function.Supplier<? extends SSTableUniqueIdentifier> idSupplier = SSTableUniqueIdentifierFactory.instance.defaultBuilder()
+                                                                                                                           .generator(curIds);
+        return new ColumnFamilyStore(keyspace, columnFamily, idSupplier, metadata, directories, loadSSTables, registerBookkeeping, offline);
     }
 
     /**
@@ -799,7 +796,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                            descriptor.cfname,
                                            // Increment the generation until we find a filename that doesn't exist. This is needed because the new
                                            // SSTables that are being loaded might already use these generation numbers.
-                                           fileIndexGenerator.incrementAndGet(),
+                                           fileIndexGenerator.get(),
                                            descriptor.formatType);
         }
         while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
@@ -851,7 +848,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                               directory,
                               keyspace.getName(),
                               name,
-                              fileIndexGenerator.incrementAndGet(),
+                              fileIndexGenerator.get(),
                               format);
     }
 
@@ -1954,7 +1951,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public Refs<SSTableReader> getSnapshotSSTableReaders(String tag) throws IOException
     {
-        Map<Integer, SSTableReader> active = new HashMap<>();
+        Map<SSTableUniqueIdentifier, SSTableReader> active = new HashMap<>();
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
             active.put(sstable.descriptor.generation, sstable);
         Map<Descriptor, Set<Component>> snapshots = getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(tag).list();

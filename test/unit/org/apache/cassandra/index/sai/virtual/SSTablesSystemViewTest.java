@@ -31,6 +31,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -68,6 +69,7 @@ public class SSTablesSystemViewTest extends SAITester
     }
 
     @Test
+    // TODO failing
     public void testVirtualTableThroughIndexLifeCycle() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, v1 int, v2 int, PRIMARY KEY (k, c))");
@@ -162,11 +164,12 @@ public class SSTablesSystemViewTest extends SAITester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexName);
 
+        SequenceBasedSSTableUniqueIdentifier id = new SequenceBasedSSTableUniqueIdentifier(generation);
         for (SSTableIndex sstableIndex : sai.getContext().getView())
         {
             SSTableReader sstable = sstableIndex.getSSTable();
 
-            if (sstable.descriptor.generation == generation)
+            if (sstable.descriptor.generation.equals(id))
             {
                 Token.TokenFactory tokenFactory = cfs.metadata().partitioner.getTokenFactory();
                 AbstractBounds<Token> bounds = sstable.getBounds();

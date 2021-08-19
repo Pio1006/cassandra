@@ -24,6 +24,7 @@ import java.io.RandomAccessFile;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -36,6 +37,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexSummary;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -114,7 +116,7 @@ public class MockSchema
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
                                                cfs.getTableName(),
-                                               generation, SSTableFormat.Type.BIG);
+                                               new SequenceBasedSSTableUniqueIdentifier(generation), SSTableFormat.Type.BIG);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
         {
@@ -185,7 +187,7 @@ public class MockSchema
 
     public static ColumnFamilyStore newCFS(TableMetadata metadata)
     {
-        return new ColumnFamilyStore(ks, metadata.name, 0, new TableMetadataRef(metadata), new Directories(metadata), false, false, false);
+        return new ColumnFamilyStore(ks, metadata.name, SequenceBasedSSTableUniqueIdentifier.Builder.instance.generator(Stream.empty()), new TableMetadataRef(metadata), new Directories(metadata), false, false, false);
     }
 
     public static TableMetadata newTableMetadata(String ksname)

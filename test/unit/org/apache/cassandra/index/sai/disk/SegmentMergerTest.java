@@ -35,6 +35,7 @@ import org.apache.cassandra.index.sai.disk.io.IndexComponents;
 import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableUniqueIdentifier;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -60,6 +61,7 @@ public class SegmentMergerTest extends SAITester
     }
 
     @Test
+    // TODO failing
     public void literalIndexTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, value text, PRIMARY KEY(pk))");
@@ -119,6 +121,7 @@ public class SegmentMergerTest extends SAITester
     }
 
     @Test
+    // TODO failing
     public void numericIndexTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, value int, PRIMARY KEY(pk))");
@@ -181,7 +184,7 @@ public class SegmentMergerTest extends SAITester
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
-        Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), generation, SSTableFormat.Type.current());
+        Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), new SequenceBasedSSTableUniqueIdentifier(generation), SSTableFormat.Type.current());
         TableMetadata table = currentTableMetadata();
         assertTrue(IndexComponents.isGroupIndexComplete(descriptor));
         IndexMetadata index = table.indexes.get(indexName).get();

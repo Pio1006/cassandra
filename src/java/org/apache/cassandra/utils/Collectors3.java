@@ -20,7 +20,12 @@ package org.apache.cassandra.utils;
 
 import java.util.List;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Supplier;
 import java.util.stream.Collector;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -50,5 +55,12 @@ public class Collectors3
                             (l, r) -> l.addAll(r.build()),
                             ImmutableSet.Builder<T>::build,
                             SET_CHARACTERISTICS);
+    }
+
+    public static <T> Stream<T> toStream(Supplier<? extends Iterable<T>> lazyCollection)
+    {
+        int characteristics = 0;
+        Supplier<Spliterator<T>> spliterator = () -> Spliterators.spliteratorUnknownSize(lazyCollection.get().iterator(), characteristics);
+        return StreamSupport.stream(spliterator, characteristics, false);
     }
 }
